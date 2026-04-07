@@ -45,6 +45,17 @@ FALLBACK = {
 }
 DEFAULT = "📌"
 
+# v12: Load from config if available
+_EMOJI_CONFIG = DATA_DIR / "config" / "emoji_map.json"
+if _EMOJI_CONFIG.exists():
+    try:
+        _ec = json.loads(_EMOJI_CONFIG.read_text())
+        FALLBACK = _ec.get("map", FALLBACK)
+        DEFAULT = _ec.get("default", DEFAULT)
+        print(f"[EMOJI] Loaded {len(FALLBACK)} mappings from config/emoji_map.json")
+    except Exception as e:
+        print(f"[EMOJI] WARN: Config load failed: {e}", file=sys.stderr)
+
 def pick_batch_llm(movers: list) -> dict:
     market_list = "\n".join(f"{m['rank']}. {m['question']}" for m in movers)
     prompt = (

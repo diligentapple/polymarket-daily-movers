@@ -1,0 +1,4 @@
+nitter.net
+nitter.privacydev.net
+nitter.poast.org
+nitter.cz

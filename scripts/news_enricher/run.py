@@ -269,47 +269,45 @@ def main():
 
     print(f"[NEWS] Enriching {len(movers)} movers with news context...")
 
-    for m in movers:
-        query = build_search_query(m)
-        print(f"  {m['rank']}. Query: '{query}'")
+    # v12: Parallel news search â 4 workers, 0.3s delay instead of 1s
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        # Try Google News RSS first; fall back to DuckDuckGo
+    def _enrich_one_market(m):
+        query = build_search_query(m)
         results = search_google_news_rss(query)
         search_source = "google_news_rss"
-
         if results and all("polymarket.com" in r.get("source", "").lower() for r in results):
             ddg_results = search_duckduckgo(query)
-            if ddg_results:
-                non_poly = [r for r in ddg_results
-                            if "polymarket.com" not in r.get("source", "").lower()]
-                if non_poly:
-                    results = non_poly
-                    search_source = "duckduckgo"
-
-        
-        results = [
-            r for r in results
-            if "polymarket.com" not in r.get("source", "").lower()
-            and "kalshi.com" not in r.get("source", "").lower()
-            and "predictit.org" not in r.get("source", "").lower()
-        ]
-
+            non_poly = [r for r in ddg_results if "polymarket.com" not in r.get("source", "").lower()]
+            if non_poly:
+                results = non_poly
+                search_source = "duckduckgo"
+        results = [r for r in results
+                   if "polymarket.com" not in r.get("source", "").lower()
+                   and "kalshi.com" not in r.get("source", "").lower()
+                   and "predictit.org" not in r.get("source", "").lower()]
         best = find_best_headline(results, query)
+        time.sleep(0.3)  # reduced from 1.0s
+        return m["rank"], query, best, search_source
 
-        if best:
-            m["news_headline"] = best["title"]
-            m["news_source"] = best.get("source", "")
-            m["news_url"] = best.get("url", "")
-            m["news_search_source"] = search_source
-            print(f"  -> {best['title'][:80]}... ({best.get('source', '?')})")
-        else:
-            m["news_headline"] = None
-            m["news_source"] = None
-            m["news_url"] = None
-            m["news_search_source"] = None
-            print(f"  -> No relevant news found")
-
-        time.sleep(1.0)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(_enrich_one_market, m): m for m in movers}
+        for future in as_completed(futures):
+            m = futures[future]
+            rank, query, best, search_source = future.result()
+            print(f"  {rank}. Query: '{query}'")
+            if best:
+                m["news_headline"] = best["title"]
+                m["news_source"] = best.get("source", "")
+                m["news_url"] = best.get("url", "")
+                m["news_search_source"] = search_source
+                print(f"  -> {best['title'][:80]}... ({best.get('source', '?')})")
+            else:
+                m["news_headline"] = None
+                m["news_source"] = None
+                m["news_url"] = None
+                m["news_search_source"] = None
+                print(f"  -> No relevant news found")
 
     output = {
         **ranked_data,

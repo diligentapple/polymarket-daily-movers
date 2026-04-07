@@ -148,7 +148,21 @@ def get_entity_cap(entity: str) -> int:
         return MAX_PER_CATEGORY  # default cap
 
 # ── Editorial weight ────────────────────────────────────────────────────────────
-EDITORIAL_WEIGHT = {
+
+# v12: Load editorial weights from config if available
+_WEIGHTS_CONFIG = DATA_DIR / "config" / "editorial_weights.json"
+if _WEIGHTS_CONFIG.exists():
+    try:
+        _wc = json.loads(_WEIGHTS_CONFIG.read_text())
+        EDITORIAL_WEIGHT = _wc.get("weights", {})
+        CRYPTO_UPDOWN_WEIGHT = _wc.get("crypto_updown_weight", 0.4)
+        print(f"[RANK] Loaded {len(EDITORIAL_WEIGHT)} editorial weights from config")
+    except Exception as e:
+        print(f"[RANK] WARN: Config load failed: {e}. Using hardcoded weights.", file=sys.stderr)
+        EDITORIAL_WEIGHT = None
+
+if not globals().get('EDITORIAL_WEIGHT'):
+        EDITORIAL_WEIGHT = {
     "geopolitics": 1.8, "politics": 1.6, "us-politics": 1.6,
     "elections": 1.5, "trade": 1.5, "tariffs": 1.5,
     "economy": 1.5, "fed": 1.5, "inflation": 1.4,

@@ -40,6 +40,13 @@ ALERT_FILE = DATA_DIR / "alerts" / "latest.json"
 PUBLISH_HOUR_UTC = 13
 MAX_RETRIES = 3
 
+
+# Stages that need LLM API keys â others get keys stripped for security
+LLM_STAGES = {"EMOJI_PICKING", "INTEREST_RANKING", "COMPOSING"}
+
+# Non-critical stages â skip on failure instead of halting
+NON_CRITICAL_STAGES = {"NEWS_ENRICHING", "EMOJI_PICKING", "INTEREST_RANKING", "URL_VERIFYING"}
+
 STAGES = [
     ("SCANNING",      "scanner/run.py",         "scan_output.json",       1200),
     ("RANKING",       "ranker/run.py",           "ranked.json",            120),
@@ -53,6 +60,9 @@ STAGES = [
 STATES = {s[0]: i for i, s in enumerate(STAGES)}
 
 def log(msg):
+    # SECURITY: never log env vars containing secrets
+    if any(s in str(msg).lower() for s in ['api_key', 'api_secret', 'token_secret', 'password']):
+        msg = '[REDACTED â contains sensitive data]'
     from datetime import datetime, timezone
     ts = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
     print(f"[{ts}] [PIPELINE] {msg}", flush=True)
@@ -91,6 +101,10 @@ def run_stage(date, stage_name, script_rel, expected_file, timeout_s):
                 secrets[k.strip()] = v.strip()
     env = {**os.environ, **secrets,
            "RUN_DATE": date, "DATA_DIR": str(DATA_DIR), "BRIEFS_DIR": str(BRIEFS_DIR)}
+    # Security: strip LLM keys from stages that don't need them
+    if stage_name not in LLM_STAGES:
+        env.pop("ANTHROPIC_API_KEY", None)
+        env.pop("OPENAI_API_KEY", None)
     out_log = LOG_DIR / date / f"{stage_name.lower()}.out.log"
     err_log = LOG_DIR / date / f"{stage_name.lower()}.err.log"
     (LOG_DIR / date).mkdir(parents=True, exist_ok=True)

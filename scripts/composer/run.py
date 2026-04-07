@@ -36,7 +36,23 @@ COMPOSE_MODE = os.environ.get("COMPOSE_MODE", "template")
 REFERRAL_ID = os.environ.get("POLYMARKET_REFERRAL_ID", "")
 
 # ── Category emoji map (v7: added token/crypto emojis) ─────────────────────────
-CATEGORY_EMOJI = {
+
+# v12: Load emoji map from config if available, fall back to hardcoded
+_EMOJI_CONFIG_PATH = DATA_DIR / "config" / "emoji_map.json"
+if _EMOJI_CONFIG_PATH.exists():
+    try:
+        _emoji_config = json.loads(_EMOJI_CONFIG_PATH.read_text())
+        CATEGORY_EMOJI = _emoji_config.get("map", {})
+        EMOJI_PRIORITY = _emoji_config.get("priority", [])
+        DEFAULT_EMOJI = _emoji_config.get("default", "ð")
+        print(f"[COMPOSE] Loaded {len(CATEGORY_EMOJI)} emoji mappings from config")
+    except Exception as e:
+        print(f"[COMPOSE] WARN: Failed to load emoji config: {e}", file=sys.stderr)
+        # Fall through to hardcoded maps below
+        CATEGORY_EMOJI = None
+
+if not globals().get('CATEGORY_EMOJI'):
+    CATEGORY_EMOJI = {
     "politics": "🇺🇸", "us-politics": "🇺🇸", "elections": "🗳️",
     "geopolitics": "🌍", "world": "🌍", "china": "🇨🇳",
     "europe": "🇪🇺", "middle-east": "🌍", "russia": "🇷🇺",
@@ -249,6 +265,9 @@ CONTEXT_NO_NEWS_DOWN = [
 
 def generate_context_template(market: dict, used_patterns: set) -> str:
     has_news = bool(market.get("news_headline"))
+    # v12: guard against empty source producing "()" in output
+    if has_news and not (market.get("news_source") or "").strip():
+        has_news = False
     going_up = market["delta_pp"] > 0
 
     if has_news and going_up:
@@ -554,7 +573,10 @@ def compose_lead_tweet(movers: list) -> str:
         full = f"{title}\n\n" + body + "\n\nShow more"
         if count_tweet_chars(full) <= 280:
             return full
-    return full  # last resort
+    # v12: absolute length guard
+    if count_tweet_chars(full) > 280:
+        full = full[:277] + "..."
+    return full
 
 
 
@@ -606,6 +628,91 @@ def validate_tweet(text: str, label: str) -> list[str]:
     return issues
 
 # ── Main ───────────────────────────────────────────────────────────────────────
+
+
+def generate_all_contexts_llm(movers: list) -> dict[int, str]:
+    """
+    v12 SPEED: Generate context lines for ALL movers in ONE LLM call.
+    Returns dict mapping rank â context string. Falls back to {} on failure.
+    Saves 7+ LLM round trips (was: 8 sequential calls â now: 1 batch call).
+    """
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if not anthropic_key and not openai_key:
+        return {}
+
+    anthropic_base = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1")
+    openai_base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+
+    market_blocks = []
+    for m in movers:
+        news = ""
+        if m.get("news_headline"):
+            cleaned, _ = clean_headline(m["news_headline"])
+            news = f" | Recent headline: {cleaned} ({m.get('news_source', '')})"
+        else:
+            news = " | No news headline found"
+        market_blocks.append(
+            f"{m['rank']}. {m['question'][:80]}\n"
+            f"   {'UP' if m['delta_pp'] > 0 else 'DOWN'} {m['abs_delta_pp']:.0f}pp â "
+            f"{m['price_now']*100:.0f}% | Vol: ${m['volume_24h']:,.0f}{news}"
+        )
+
+    prompt = (
+        "You are a prediction market analyst writing for Twitter. "
+        "For EACH market below, write ONE punchy context sentence (max 25 words). "
+        "Each sentence should explain the likely REASON the market moved.\n\n"
+        "Rules:\n"
+        "- Do NOT restate probability numbers or direction\n"
+        "- If a news headline is provided, ground your explanation in it\n"
+        "- If no headline, give your best guess at the catalyst\n"
+        "- Do NOT start with 'The' or 'This'\n"
+        "- Use active voice, be specific\n\n"
+        "Markets:\n" + "\n\n".join(market_blocks) + "\n\n"
+        "Respond with ONLY valid JSON: {\"1\": \"context\", \"2\": \"context\", ...}\n"
+        "No markdown, no explanation, no backticks."
+    )
+
+    try:
+        import requests as req
+        if anthropic_key:
+            resp = req.post(
+                f"{anthropic_base}/messages",
+                headers={"x-api-key": anthropic_key, "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model": os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+                      "max_tokens": int(os.environ.get("LLM_MAX_TOKENS", 8000)),
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["content"][0]["text"].strip()
+        elif openai_key:
+            resp = req.post(
+                f"{openai_base}/chat/completions",
+                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                json={"model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                      "max_tokens": int(os.environ.get("LLM_MAX_TOKENS", 8000)),
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"]
+            if not raw:
+                return {}
+            raw = raw.strip()
+        else:
+            return {}
+
+        raw = raw.strip("`")
+        if raw.startswith("json"):
+            raw = raw[4:].strip()
+        result = json.loads(raw)
+        return {int(k): v.strip().rstrip(".") for k, v in result.items()}
+    except Exception as e:
+        print(f"[COMPOSE] Batch context LLM failed: {e}", file=sys.stderr)
+        return {}
+
 def main():
     if not INPUT_FILE.exists():
         print(f"[COMPOSE] ERROR: {INPUT_FILE} not found", file=sys.stderr)
@@ -623,15 +730,28 @@ def main():
     print(f"[COMPOSE] Mode: {COMPOSE_MODE}. Generating context for {len(movers)} movers...")
     used_patterns = set()
 
+    # v12 SPEED: batch all LLM context calls into ONE request
+    batch_contexts = {}
+    if COMPOSE_MODE == "llm":
+        print("[COMPOSE] Generating all contexts in ONE batched LLM call...")
+        batch_contexts = generate_all_contexts_llm(movers)
+        if batch_contexts:
+            print(f"[COMPOSE] LLM returned {len(batch_contexts)} contexts in batch")
+        else:
+            print("[COMPOSE] Batch LLM failed â falling back to individual calls")
+
     for m in movers:
-        context = None
-        if COMPOSE_MODE == "llm":
+        context = batch_contexts.get(m.get("rank"))
+
+        # If batch didn't cover this market, try individual LLM
+        if not context and COMPOSE_MODE == "llm" and not batch_contexts:
             try:
                 context = generate_context_llm(m)
             except Exception as e:
                 print(f" [WARN] LLM failed for '{m['question'][:40]}': {e}")
 
-        if context is None:
+        # Final fallback: template
+        if not context:
             context = generate_context_template(m, used_patterns)
 
         m["context_line"] = context

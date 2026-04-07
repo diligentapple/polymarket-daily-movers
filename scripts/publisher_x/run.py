@@ -14,6 +14,17 @@ import time
 from pathlib import Path
 from datetime import datetime, timezone
 
+import re as _re_chars
+X_URL_LENGTH = 23
+def count_tweet_chars(text: str) -> int:
+    urls = _re_chars.compile(r"https?://\S+").findall(text)
+    c = len(text)
+    for url in urls:
+        c -= len(url)
+        c += X_URL_LENGTH
+    return c
+
+
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/home/diligentapple/.openclaw/workspace/polymarket"))
 DATE = os.environ.get("RUN_DATE")
 TWEETS_FILE = DATA_DIR / "briefs" / DATE / "tweets.json"
@@ -37,8 +48,8 @@ def preflight_check(tweets: dict) -> list[str]:
             blockers.append(f"{label}: __FILL_IN__ present")
         if "SUBSTACK_URL" in text:
             blockers.append(f"{label}: SUBSTACK_URL present")
-        if len(text) > 280:
-            blockers.append(f"{label}: {len(text)} chars exceeds 280 limit")
+        if count_tweet_chars(text) > 280:
+            blockers.append(f"{label}: {count_tweet_chars(text)} effective chars exceeds 280 limit")
 
         # Check for valid Polymarket URLs in replies
         import re as _re_url

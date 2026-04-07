@@ -67,6 +67,7 @@ def fetch_active_markets():
     markets = []
     offset = 0
     limit = 100
+    low_vol_pages = 0  # v12: early stop counter
     while True:
         resp = requests.get(
             f"{GAMMA_BASE}/markets",
@@ -85,8 +86,21 @@ def fetch_active_markets():
         if not batch:
             break
         markets.extend(batch)
+
+        # v12 SPEED: early stop â since results are sorted by volume desc,
+        # once we see 3 consecutive pages where ALL markets are below MIN_VOLUME,
+        # remaining pages will also be below threshold. Stop paginating.
+        all_below = all(float(m.get("volume24hr", 0) or 0) < MIN_VOLUME for m in batch)
+        if all_below:
+            low_vol_pages += 1
+            if low_vol_pages >= 3:
+                print(f"[SCAN] Early stop: {low_vol_pages} consecutive low-volume pages at offset {offset}")
+                break
+        else:
+            low_vol_pages = 0
+
         offset += limit
-        time.sleep(0.3)
+        time.sleep(0.15)  # v12: reduced from 0.3s
     return markets
 
 def parse_json_field(raw, fallback=None):
@@ -267,7 +281,11 @@ def main():
             return None
 
         primary_token = clob_token_ids[0]
+        # v12: 1 retry on failure
         history = fetch_price_history(primary_token)
+        if not history:
+            time.sleep(1)
+            history = fetch_price_history(primary_token)
         book = fetch_book_summary(primary_token)
 
         outcome_prices = parse_json_field(m.get("outcomePrices"), [])
