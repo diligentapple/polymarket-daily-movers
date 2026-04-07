@@ -638,7 +638,8 @@ def compose_lead_tweet(movers: list) -> str:
     # v13: branded header
     header = f"\U0001f4ca {to_bold('Polymarket News')}"
 
-    for max_q_len in [38, 32, 26]:
+    # v13.1: show full title, hide pct range to save space
+    for max_q_len in [55, 48, 42, 36]:
         mover_lines = []
         for i, m in enumerate(lead_picks[:3]):
             emoji = m.get("emoji") or get_emoji(m.get("tag_slugs", []), m.get("question", ""))
@@ -646,20 +647,8 @@ def compose_lead_tweet(movers: list) -> str:
             theme_bold = to_bold(theme)
             short_q = shorten_for_lead(m["question"], max_chars=max_q_len)
             sign = "+" if m["delta_pp"] > 0 else ""
-            outcome = m.get("primary_outcome", "Yes")
-            if outcome.lower() not in ("yes", "no", "true", "false"):
-                short_outcome = (outcome[:12] + ":") if len(outcome) <= 12 else (outcome[:9] + "...:")
-                line = (
-                    f"{i+1}. {emoji} {theme_bold} \u00b7 {short_q}\n"
-                    f"   {short_outcome} {m['price_24h_ago_pct']:.0f}%\u2192{m['price_now_pct']:.0f}% "
-                    f"({sign}{m['delta_pp']:.0f}pp)"
-                )
-            else:
-                line = (
-                    f"{i+1}. {emoji} {theme_bold} \u00b7 {short_q} "
-                    f"{m['price_24h_ago_pct']:.0f}%\u2192{m['price_now_pct']:.0f}% "
-                    f"({sign}{m['delta_pp']:.0f}pp)"
-                )
+            direction = "\U0001f4c8" if m["delta_pp"] > 0 else "\U0001f4c9"
+            line = f"{i+1}. {emoji} {theme_bold} \u00b7 {short_q} {direction}{sign}{m['delta_pp']:.0f}pp"
             mover_lines.append(line)
         body = "\n".join(mover_lines)
         full = f"{header}\n\n{body}\n\nShow more"
@@ -681,7 +670,7 @@ def compose_reply(market: dict) -> str:
     url = make_market_url(market)
     vol = market["volume_24h"]
     vol_str = format_volume(vol)
-    arrow = "\u2191" if market["delta_pp"] > 0 else "\u2193"
+    arrow = "\U0001f4c8" if market["delta_pp"] > 0 else "\U0001f4c9"
     sign = "+" if market["delta_pp"] > 0 else ""
     context = market.get("context_line", "")
 
@@ -698,7 +687,7 @@ def compose_reply(market: dict) -> str:
 
     # v13: theme header line + clearer outcome with inline price move
     theme_header = f"{emoji} {to_bold(theme)}"
-    pct_line = f"{outcome}: {new_pct:.0f}% ({arrow}{old_pct:.0f}\u2192{new_pct:.0f}%, {sign}{vol_str} vol)"
+    pct_line = f"{outcome}: {new_pct:.0f}% {arrow} ({old_pct:.0f}\u2192{new_pct:.0f}%, {sign}{vol_str} vol)"
 
     lines = [
         theme_header,
@@ -708,7 +697,7 @@ def compose_reply(market: dict) -> str:
         "",
         context,
         "",
-        f"\u2192 {url}",
+        f"\u279c  {url}",
     ]
     return "\n".join(lines)
 

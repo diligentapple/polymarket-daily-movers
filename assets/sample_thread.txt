@@ -3,104 +3,104 @@
 LEAD TWEET:
 📊 𝗣𝗼𝗹𝘆𝗺𝗮𝗿𝗸𝗲𝘁 𝗡𝗲𝘄𝘀
 
-1. 🏀 𝗦𝗽𝗼𝗿𝘁𝘀 · Cooper Flagg NBA ROTY? 24%→64% (+40pp)
-2. 🇺🇦 𝗚𝗲𝗼𝗽𝗼𝗹𝗶𝘁𝗶𝗰𝘀 · Ukraine re-enter Rodynske? 82%→48% (-34pp)
-3. 🎬 𝗖𝘂𝗹𝘁𝘂𝗿𝗲 · MrBeast video views week 1? 64%→27% (-36pp)
+1. ⚔️ 𝗚𝗲𝗼𝗽𝗼𝗹𝗶𝘁𝗶𝗰𝘀 · Israel take military action in Gaza? 📉-32pp
+2. 🎾 𝗦𝗽𝗼𝗿𝘁𝘀 · Monte Carlo: Moutet vs Muller? 📈+30pp
+3. 🎾 𝗦𝗽𝗼𝗿𝘁𝘀 · Madrid: Avanesyan vs Lazaro Garcia? 📈+28pp
 
 Show more
 
 ---
 
-REPLY 1 — Cooper Flagg NBA Rookie of the Year
-🏀 𝗦𝗽𝗼𝗿𝘁𝘀
+REPLY 1:
+⚔️ 𝗚𝗲𝗼𝗽𝗼𝗹𝗶𝘁𝗶𝗰𝘀
 
-Cooper Flagg win the 2025–26 NBA Rookie of the Year?
-Yes: 64% (↑24→64%, +$51K vol)
+Israel take military action in Gaza?
+Yes: 56% 📉 (89→56%, $90K vol)
 
-Kia Rookie Ladder update solidified Flagg's frontrunner status after strong April stretch
+Reports of back-channel ceasefire negotiations dampened expectations for Israeli military action
 
-→ https://polymarket.com/event/nba-rookie-of-the-year-873
-
----
-
-REPLY 2 — Ukraine re-enter Rodynske
-🇺🇦 𝗚𝗲𝗼𝗽𝗼𝗹𝗶𝘁𝗶𝗰𝘀
-
-Ukraine re-enter Rodynske?
-Yes: 48% (↓82→48%, $124K vol)
-
-Sharp move toward No. $124K in volume suggests a meaningful signal
-
-→ https://polymarket.com/event/will-ukraine-re-enter-rodynske-by-april-30
+➜  https://polymarket.com/event/israel-military-action-gaza
 
 ---
 
-REPLY 3 — MrBeast next video views
-🎬 𝗖𝘂𝗹𝘁𝘂𝗿𝗲
+REPLY 2:
+🎾 𝗦𝗽𝗼𝗿𝘁𝘀
 
-MrBeast's next video views on week 1?
-Yes: 27% (↓64→27%, $28K vol)
+Rolex Monte Carlo Masters: Corentin Moutet vs Alexandre Muller?
+Corentin Moutet: 90% 📈 (60→90%, +$160K vol)
 
-Sellers drove this down 36pp — $28K of conviction behind the move
+Moutet's higher ranking boosts confidence he'll beat Muller at Monte-Carlo Masters
 
-→ https://polymarket.com/event/of-views-of-next-mrbeast-video-on-week-1-794
+➜  https://polymarket.com/event/monte-carlo-moutet-muller
 
 ---
 
-REPLY 4 — S&P 500 open up/down
+REPLY 3:
+🎾 𝗦𝗽𝗼𝗿𝘁𝘀
+
+Madrid: Elina Avanesyan vs Andrea Lazaro Garcia?
+Elina Avanesyan: 72% 📈 (44→72%, +$119K vol)
+
+Recent head-to-head stats highlighting Garcia's strong form signal she's favored
+
+➜  https://polymarket.com/event/madrid-avanesyan-garcia
+
+---
+
+REPLY 4:
 📈 𝗠𝗮𝗿𝗸𝗲𝘁𝘀
 
-S&P 500 (SPX) Opens Up or Down?
-Up: 52% (↑28→52%, +$131K vol)
+S&P 500 (SPX) Up or Down?
+Up: 14% 📉 (55→14%, $42K vol)
 
-Will S&P 500 Open Up Or Down On April 2? (Benzinga). Up 24pp
+Rising concerns over a surprise Fed rate hike and weaker employment data slashed optimism
 
-→ https://polymarket.com/event/spx-opens-up-or-down-on-april-6-2026
+➜  https://polymarket.com/event/spx-up-or-down-april-7
 
 ---
 
-REPLY 5 — CS2 esports
+REPLY 5:
 🎮 𝗘𝘀𝗽𝗼𝗿𝘁𝘀
 
-Counter-Strike: FOKUS vs Wildcard - Map 2 Winner?
-FOKUS: 74% (↑50→74%, +$27K vol)
+Valorant: TEC Esports vs Bilibili Gaming (BO3)?
+TEC Esports: 78% 📈 (18→78%, +$85K vol)
 
-Odds moved sharply toward FOKUS — strong map pick advantage
+TEC Esports' dominant VCT China run and roster upgrade made them heavy favorites
 
-→ https://polymarket.com/event/cs2-fokus-wc1-2026-04-06
-
----
-
-REPLY 6 — Elon Musk tweets
-🚀 𝗧𝗲𝗰𝗵
-
-Elon Musk post tweets?
-Yes: 68% (↑46→68%, +$67K vol)
-
-Significant upward repricing — $67K in volume. Something shifted overnight
-
-→ https://polymarket.com/event/elon-musk-of-tweets-april-4-april-6
+➜  https://polymarket.com/event/valorant-tec-bilibili
 
 ---
 
-REPLY 7 — LoL esports
-🎮 𝗘𝘀𝗽𝗼𝗿𝘁𝘀
+REPLY 6:
+🇺🇸 𝗣𝗼𝗹𝗶𝘁𝗶𝗰𝘀
 
-LoL: GIANTX vs Team Heretics - Game 1 Winner?
-GIANTX: 62% (↑38→62%, +$21K vol)
+White House post 200+ posts?
+Yes: 74% 📈 (11→74%, +$8K vol)
 
-GIANTX vs Team Heretics 2–1 | LEC (Sheep Esports). Odds climbed on the back of this
+White House directive to ramp up public outreach ahead of major policy announcement
 
-→ https://polymarket.com/event/lol-gx-th-2026-04-06
+➜  https://polymarket.com/event/white-house-posts
 
 ---
 
-REPLY 8 — Bitcoin (always last, after crypto cap)
-₿ 𝗖𝗿𝘆𝗽𝘁𝗼
+REPLY 7:
+🎾 𝗦𝗽𝗼𝗿𝘁𝘀
 
-Above $68,000?
-Yes: 86% (↑26→86%, +$187K vol)
+Bejlek vs. Udvardy: Match O/U 23.5?
+Over: 50% 📈 (18→50%, +$43K vol)
 
-Bitcoin Soars: BTC Price Surges Above $68,000 in Major Market Rally
+Recent stats showing both players frequently going to three sets pushed expectations higher
 
-→ https://polymarket.com/event/bitcoin-above-on-april-6
+➜  https://polymarket.com/event/bejlek-udvardy-ou
+
+---
+
+REPLY 8:
+⟠ 𝗖𝗿𝘆𝗽𝘁𝗼
+
+Ethereum above $2,100?
+Yes: 8% 📉 (72→8%, $54K vol)
+
+Ethereum's failure to hold above $2,100 fueled heavy selling despite bullish headlines
+
+➜  https://polymarket.com/event/ethereum-above-2100
