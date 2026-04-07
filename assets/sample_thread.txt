@@ -1,96 +1,106 @@
 === SAMPLE OUTPUT — Polymarket Daily Mover Thread ===
 
 LEAD TWEET:
-The market knows something. Here's what moved.
+📊 𝗣𝗼𝗹𝘆𝗺𝗮𝗿𝗸𝗲𝘁 𝗡𝗲𝘄𝘀
 
-1. 🏀 Cooper Flagg win the 2025–26 NBA Rookie of the Year? 24%→64% (+40pp)
-2. 🇺🇦 Ukraine re-enter Rodynske? 82%→48% (-34pp)
-3. 🎬 MrBeast's next video views on week 1? 64%→27% (-36pp)
+1. 🏀 𝗦𝗽𝗼𝗿𝘁𝘀 · Cooper Flagg NBA ROTY? 24%→64% (+40pp)
+2. 🇺🇦 𝗚𝗲𝗼𝗽𝗼𝗹𝗶𝘁𝗶𝗰𝘀 · Ukraine re-enter Rodynske? 82%→48% (-34pp)
+3. 🎬 𝗖𝘂𝗹𝘁𝘂𝗿𝗲 · MrBeast video views week 1? 64%→27% (-36pp)
 
 Show more
 
 ---
 
 REPLY 1 — Cooper Flagg NBA Rookie of the Year
-🏀 Cooper Flagg win the 2025–26 NBA Rookie of the Year?
-Yes: 64% (up from 24% yesterday)
+🏀 𝗦𝗽𝗼𝗿𝘁𝘀
 
-Market up 40pp — Kia Rookie Ladder: Cooper Flagg, Kon Knueppel try to solidify... (NBA)
-$51K vol
+Cooper Flagg win the 2025–26 NBA Rookie of the Year?
+Yes: 64% (↑24→64%, +$51K vol)
+
+Kia Rookie Ladder update solidified Flagg's frontrunner status after strong April stretch
 
 → https://polymarket.com/event/nba-rookie-of-the-year-873
 
 ---
 
 REPLY 2 — Ukraine re-enter Rodynske
-🇺🇦 Ukraine re-enter Rodynske?
-Yes: 48% (down from 82% yesterday)
+🇺🇦 𝗚𝗲𝗼𝗽𝗼𝗹𝗶𝘁𝗶𝗰𝘀
 
-Sharp move toward No. $124K in volume suggests a meaningful signal.
+Ukraine re-enter Rodynske?
+Yes: 48% (↓82→48%, $124K vol)
+
+Sharp move toward No. $124K in volume suggests a meaningful signal
 
 → https://polymarket.com/event/will-ukraine-re-enter-rodynske-by-april-30
 
 ---
 
 REPLY 3 — MrBeast next video views
-🎬 MrBeast's next video views on week 1?
-Yes: 27% (down from 64% yesterday)
+🎬 𝗖𝘂𝗹𝘁𝘂𝗿𝗲
 
-Sellers drove this down 36pp. $28K of conviction behind the move.
-$28K vol
+MrBeast's next video views on week 1?
+Yes: 27% (↓64→27%, $28K vol)
+
+Sellers drove this down 36pp — $28K of conviction behind the move
 
 → https://polymarket.com/event/of-views-of-next-mrbeast-video-on-week-1-794
 
 ---
 
 REPLY 4 — S&P 500 open up/down
-📈 S&P 500 (SPX) Opens Up or Down?
-Up: 52% (up from 28% yesterday)
+📈 𝗠𝗮𝗿𝗸𝗲𝘁𝘀
 
-Will S&P 500 Open Up Or Down On April 2? (Benzinga). Up 24pp.
-$131K vol
+S&P 500 (SPX) Opens Up or Down?
+Up: 52% (↑28→52%, +$131K vol)
+
+Will S&P 500 Open Up Or Down On April 2? (Benzinga). Up 24pp
 
 → https://polymarket.com/event/spx-opens-up-or-down-on-april-6-2026
 
 ---
 
-REPLY 5 — CS2 esports (crypto cap forces to end in this example)
-🎮 Counter-Strike: FOKUS vs Wildcard - Map 2 Winner
-FOKUS: 74% (up from 50% yesterday)
+REPLY 5 — CS2 esports
+🎮 𝗘𝘀𝗽𝗼𝗿𝘁𝘀
 
-Odds moved sharply toward Yes. $27K of conviction behind the move.
-$27K vol
+Counter-Strike: FOKUS vs Wildcard - Map 2 Winner?
+FOKUS: 74% (↑50→74%, +$27K vol)
+
+Odds moved sharply toward FOKUS — strong map pick advantage
 
 → https://polymarket.com/event/cs2-fokus-wc1-2026-04-06
 
 ---
 
 REPLY 6 — Elon Musk tweets
-🚀 Elon Musk post tweets?
-Yes: 68% (up from 46% yesterday)
+🚀 𝗧𝗲𝗰𝗵
 
-Significant upward repricing — $67K in volume. Something shifted overnight.
+Elon Musk post tweets?
+Yes: 68% (↑46→68%, +$67K vol)
+
+Significant upward repricing — $67K in volume. Something shifted overnight
 
 → https://polymarket.com/event/elon-musk-of-tweets-april-4-april-6
 
 ---
 
 REPLY 7 — LoL esports
-🎮 LoL: GIANTX vs Team Heretics - Game 1 Winner
-GIANTX: 62% (up from 38% yesterday)
+🎮 𝗘𝘀𝗽𝗼𝗿𝘁𝘀
 
-GIANTX vs Team Heretics 2–1 | LEC (Sheep Esports). Odds climbed on the back of this.
-$21K vol
+LoL: GIANTX vs Team Heretics - Game 1 Winner?
+GIANTX: 62% (↑38→62%, +$21K vol)
+
+GIANTX vs Team Heretics 2–1 | LEC (Sheep Esports). Odds climbed on the back of this
 
 → https://polymarket.com/event/lol-gx-th-2026-04-06
 
 ---
 
 REPLY 8 — Bitcoin (always last, after crypto cap)
-₿ Above $68,000?
-Yes: 86% (up from 26% yesterday)
+₿ 𝗖𝗿𝘆𝗽𝘁𝗼
 
-Up 61pp. Bitcoin Soars: BTC Price Surges Above $68,000 in Major Market Rally — CryptoRank
-$187K vol
+Above $68,000?
+Yes: 86% (↑26→86%, +$187K vol)
+
+Bitcoin Soars: BTC Price Surges Above $68,000 in Major Market Rally
 
 → https://polymarket.com/event/bitcoin-above-on-april-6

@@ -13,16 +13,36 @@ import json
 import re
 import random
 from pathlib import Path
-from datetime import datetime
-
 X_URL_LENGTH = 23
+
+# ── Unicode bold text (works on X/Twitter without markdown) ───────────────────
+_BOLD_MAP = {}
+for _i, _c in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"):
+    if _c.isupper():
+        _BOLD_MAP[_c] = chr(0x1D5D4 + _i)       # 𝗔-𝗭
+    elif _c.islower():
+        _BOLD_MAP[_c] = chr(0x1D5EE + (_i - 26)) # 𝗮-𝘇
+    else:
+        _BOLD_MAP[_c] = chr(0x1D7EC + (_i - 52)) # 𝟬-𝟵
+_BOLD_MAP[" "] = " "
+
+def to_bold(text: str) -> str:
+    """Convert ASCII text to Unicode Mathematical Sans-Serif Bold."""
+    return "".join(_BOLD_MAP.get(c, c) for c in text)
 
 def count_tweet_chars(text: str) -> int:
     url_pattern = re.compile(r"https?://\S+")
     urls = url_pattern.findall(text)
-    char_count = len(text)
+    char_count = 0
+    for ch in text:
+        # Unicode chars outside BMP (surrogate pairs) count as 2 on X
+        if ord(ch) > 0xFFFF:
+            char_count += 2
+        else:
+            char_count += 1
     for url in urls:
-        char_count -= len(url)
+        url_len = sum(2 if ord(c) > 0xFFFF else 1 for c in url)
+        char_count -= url_len
         char_count += X_URL_LENGTH
     return char_count
 
@@ -133,6 +153,79 @@ EMOJI_PRIORITY = [
     # v7: token markets
     "token", "airdrop", "token-launch", "axiom", "defi",
 ]
+
+# ── Theme labels for tweet grouping ───────────────────────────────────────────
+# Maps tag slugs / categories → human-readable theme label
+# Each tweet gets ONE theme label displayed as "emoji 𝗧𝗵𝗲𝗺𝗲"
+THEME_LABELS = {
+    # Geopolitics & politics
+    "geopolitics": "Geopolitics", "politics": "Politics", "us-politics": "US Politics",
+    "elections": "Elections", "election": "Elections",
+    "ukraine": "Geopolitics", "russia": "Geopolitics", "israel": "Geopolitics",
+    "iran": "Geopolitics", "china": "Geopolitics", "taiwan": "Geopolitics",
+    "gaza": "Geopolitics", "middle-east": "Geopolitics",
+    "trade": "Trade", "tariffs": "Trade", "tariff": "Trade",
+    "war": "Geopolitics", "conflict": "Geopolitics", "military": "Geopolitics",
+    "sanctions": "Geopolitics",
+    # Economy & markets
+    "economy": "Markets", "fed": "Markets", "inflation": "Markets",
+    "fed-rate": "Markets", "interest-rate": "Markets", "rate-cut": "Markets",
+    "markets": "Markets", "stocks": "Markets", "finance": "Markets",
+    "spx": "Markets", "s&p": "Markets", "sp500": "Markets",
+    "dow": "Markets", "nasdaq": "Markets", "ipo": "Markets",
+    "oil": "Energy", "opec": "Energy", "wti": "Energy", "crude": "Energy",
+    "natural-gas": "Energy", "energy": "Energy",
+    # Tech & AI
+    "ai": "AI", "tech": "Tech", "science": "Science",
+    "space": "Space", "musk": "Tech", "elon-musk": "Tech", "spacex": "Space",
+    # Crypto
+    "crypto": "Crypto", "bitcoin": "Crypto", "btc": "Crypto",
+    "ethereum": "Crypto", "eth": "Crypto", "solana": "Crypto", "sol": "Crypto",
+    "token": "Crypto", "defi": "Crypto", "airdrop": "Crypto", "nft": "Crypto",
+    # Sports
+    "sports": "Sports", "nba": "Sports", "nfl": "Sports", "mlb": "Sports",
+    "nhl": "Sports", "mls": "Sports", "ufc": "Sports", "mma": "Sports",
+    "f1": "Sports", "tennis": "Sports", "golf": "Sports", "cricket": "Sports",
+    "boxing": "Sports", "nbl": "Sports", "wnba": "Sports",
+    "la-liga": "Sports", "premier-league": "Sports", "serie-a": "Sports",
+    "bundesliga": "Sports", "champions-league": "Sports",
+    # Esports
+    "esports": "Esports", "e-sports": "Esports", "cs2": "Esports", "csgo": "Esports",
+    "counter-strike": "Esports", "dota": "Esports", "dota2": "Esports",
+    "league-of-legends": "Esports", "lol": "Esports", "valorant": "Esports",
+    "faze": "Esports", "navi": "Esports", "cybershoke": "Esports",
+    # Entertainment
+    "entertainment": "Culture", "movie": "Culture", "film": "Culture",
+    "culture": "Culture", "awards": "Culture", "music": "Culture",
+    "youtube": "Culture", "streaming": "Culture", "mrbeast": "Culture",
+    "mr-beast": "Culture",
+    # Other
+    "climate": "Climate", "nuclear": "Climate",
+    "legal": "Legal", "health": "Health",
+}
+
+def get_theme_label(market: dict) -> str:
+    """Return a short theme label for a market, e.g. 'Geopolitics', 'Sports', 'Crypto'."""
+    tag_slugs = market.get("tag_slugs", [])
+    question = market.get("question", "").lower()
+
+    # Priority: check tags first
+    for slug in tag_slugs:
+        s = slug.lower()
+        if s in THEME_LABELS:
+            return THEME_LABELS[s]
+
+    # Fallback: scan question for keywords
+    for kw, label in THEME_LABELS.items():
+        if len(kw) >= 3 and kw in question:
+            return label
+
+    # Last resort
+    if market.get("is_sports", False):
+        return "Sports"
+    if market.get("is_crypto", False):
+        return "Crypto"
+    return "Markets"
 
 # ── Headline cleaning ───────────────────────────────────────────────────────────
 def clean_headline(raw: str) -> tuple[str, str]:
@@ -522,9 +615,7 @@ def _generate_lead_title_llm_generic(movers: list, date_fmt: str) -> str | None:
 
 
 def compose_lead_tweet(movers: list) -> str:
-    date_fmt = datetime.strptime(DATE, "%Y-%m-%d").strftime("%b %-d")
-
-    # v10: select exactly 3 diverse NON-CRYPTO movers for the lead
+    # v13: select exactly 3 diverse NON-CRYPTO movers for the lead
     lead_picks = []
     used_entities = set()
     for m in movers:
@@ -544,36 +635,38 @@ def compose_lead_tweet(movers: list) -> str:
                 lead_picks.append(m)
                 break
 
-    # v10: generic rotating title (LLM-enhanced when available)
-    title = generate_lead_title(movers, date_fmt)
+    # v13: branded header
+    header = f"\U0001f4ca {to_bold('Polymarket News')}"
 
-    for max_q_len in [40, 34, 28]:
+    for max_q_len in [38, 32, 26]:
         mover_lines = []
         for i, m in enumerate(lead_picks[:3]):
             emoji = m.get("emoji") or get_emoji(m.get("tag_slugs", []), m.get("question", ""))
+            theme = get_theme_label(m)
+            theme_bold = to_bold(theme)
             short_q = shorten_for_lead(m["question"], max_chars=max_q_len)
             sign = "+" if m["delta_pp"] > 0 else ""
-            # v10: always show outcome label in lead
             outcome = m.get("primary_outcome", "Yes")
             if outcome.lower() not in ("yes", "no", "true", "false"):
-                short_outcome = (outcome[:15] + ":") if len(outcome) <= 15 else (outcome[:12] + "...:")
+                short_outcome = (outcome[:12] + ":") if len(outcome) <= 12 else (outcome[:9] + "...:")
                 line = (
-                    f"{i+1}. {emoji} {short_q}\n"
-                    f" {short_outcome} {m['price_24h_ago_pct']:.0f}%\u2192{m['price_now_pct']:.0f}% "
+                    f"{i+1}. {emoji} {theme_bold} \u00b7 {short_q}\n"
+                    f"   {short_outcome} {m['price_24h_ago_pct']:.0f}%\u2192{m['price_now_pct']:.0f}% "
                     f"({sign}{m['delta_pp']:.0f}pp)"
                 )
             else:
                 line = (
-                    f"{i+1}. {emoji} {short_q} "
+                    f"{i+1}. {emoji} {theme_bold} \u00b7 {short_q} "
                     f"{m['price_24h_ago_pct']:.0f}%\u2192{m['price_now_pct']:.0f}% "
                     f"({sign}{m['delta_pp']:.0f}pp)"
                 )
             mover_lines.append(line)
         body = "\n".join(mover_lines)
-        full = f"{title}\n\n" + body + "\n\nShow more"
+        full = f"{header}\n\n{body}\n\nShow more"
         if count_tweet_chars(full) <= 280:
             return full
-    # v12: absolute length guard
+
+    # Absolute length guard
     if count_tweet_chars(full) > 280:
         full = full[:277] + "..."
     return full
@@ -583,34 +676,40 @@ def compose_lead_tweet(movers: list) -> str:
 # ── Reply composition ──────────────────────────────────────────────────────────
 def compose_reply(market: dict) -> str:
     emoji = market.get("emoji") or get_emoji(market.get("tag_slugs", []), market.get("question", ""))
+    theme = get_theme_label(market)
     short_q = shorten_question(market["question"])
     url = make_market_url(market)
-    vol_str = format_volume(market["volume_24h"])
-    direction_word = "up from" if market["delta_pp"] > 0 else "down from"
+    vol = market["volume_24h"]
+    vol_str = format_volume(vol)
+    arrow = "\u2191" if market["delta_pp"] > 0 else "\u2193"
+    sign = "+" if market["delta_pp"] > 0 else ""
     context = market.get("context_line", "")
 
-    # v7: DEFENSIVE — if context somehow still empty, generate inline
+    # v13: DEFENSIVE — if context somehow still empty, generate inline
     if not context or len(context.strip()) < 10:
         if market["delta_pp"] > 0:
-            context = f"A {market['abs_delta_pp']:.0f}pp swing on {vol_str} volume suggests new information."
+            context = f"A {market['abs_delta_pp']:.0f}pp swing on {vol_str} volume suggests new information"
         else:
-            context = f"Dropped {market['abs_delta_pp']:.0f}pp on {vol_str} volume \u2014 market growing skeptical."
+            context = f"Dropped {market['abs_delta_pp']:.0f}pp on {vol_str} volume \u2014 market growing skeptical"
 
     outcome = market.get("primary_outcome", "Yes")
-    # v10: ALWAYS show the outcome label so readers know what the % means
-    pct_line = f"{outcome}: {market['price_now_pct']:.0f}% ({direction_word} {market['price_24h_ago_pct']:.0f}% yesterday)"
+    old_pct = market["price_24h_ago_pct"]
+    new_pct = market["price_now_pct"]
+
+    # v13: theme header line + clearer outcome with inline price move
+    theme_header = f"{emoji} {to_bold(theme)}"
+    pct_line = f"{outcome}: {new_pct:.0f}% ({arrow}{old_pct:.0f}\u2192{new_pct:.0f}%, {sign}{vol_str} vol)"
 
     lines = [
-        f"{emoji} {short_q}",
+        theme_header,
+        "",
+        short_q,
         pct_line,
         "",
         context,
+        "",
+        f"\u2192 {url}",
     ]
-    context_lower = context.lower()
-    vol_mentioned = any(kw in context_lower for kw in ["vol", "volume", "traded", "changed hands"])
-    if not vol_mentioned:
-        lines.append(f"{vol_str} vol")
-    lines.extend(["", f"\u2192 {url}"])
     return "\n".join(lines)
 
 # ── Validation ──────────────────────────────────────────────────────────────────
