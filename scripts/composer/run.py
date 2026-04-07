@@ -205,22 +205,25 @@ THEME_LABELS = {
 }
 
 def get_theme_label(market: dict) -> str:
-    """Return a short theme label for a market, e.g. 'Geopolitics', 'Sports', 'Crypto'."""
+    """
+    v13.2: Return the theme label for a market.
+    Priority: LLM-assigned 'theme' field (from emoji_picker) → hardcoded fallback.
+    """
+    # 1. Use LLM-assigned theme if present
+    theme = market.get("theme")
+    if theme:
+        return theme
+
+    # 2. Fallback: tag-based lookup
     tag_slugs = market.get("tag_slugs", [])
     question = market.get("question", "").lower()
-
-    # Priority: check tags first
     for slug in tag_slugs:
         s = slug.lower()
         if s in THEME_LABELS:
             return THEME_LABELS[s]
-
-    # Fallback: scan question for keywords
     for kw, label in THEME_LABELS.items():
         if len(kw) >= 3 and kw in question:
             return label
-
-    # Last resort
     if market.get("is_sports", False):
         return "Sports"
     if market.get("is_crypto", False):
