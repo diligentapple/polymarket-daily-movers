@@ -1,0 +1,727 @@
+"""
+Composer subagent v7.
+Generates tweet thread with varied language, shortened questions, and validated output.
+
+INPUT: {DATA_DIR}/briefs/{date}/ranked.json (or enriched.json if present)
+OUTPUT: {DATA_DIR}/briefs/{date}/tweets.json
+EXIT: 0 on success, 1 on failure
+"""
+
+import os
+import sys
+import json
+import re
+import random
+from pathlib import Path
+from datetime import datetime
+
+X_URL_LENGTH = 23
+
+def count_tweet_chars(text: str) -> int:
+    url_pattern = re.compile(r"https?://\S+")
+    urls = url_pattern.findall(text)
+    char_count = len(text)
+    for url in urls:
+        char_count -= len(url)
+        char_count += X_URL_LENGTH
+    return char_count
+
+DATA_DIR = Path(os.environ.get("DATA_DIR", "/home/diligentapple/.openclaw/workspace/polymarket"))
+DATE = os.environ.get("RUN_DATE")
+ENRICHED_FILE = DATA_DIR / "briefs" / DATE / "enriched.json"
+RANKED_FILE = DATA_DIR / "briefs" / DATE / "ranked.json"
+INPUT_FILE = ENRICHED_FILE if ENRICHED_FILE.exists() else RANKED_FILE
+TWEETS_FILE = DATA_DIR / "briefs" / DATE / "tweets.json"
+COMPOSE_MODE = os.environ.get("COMPOSE_MODE", "template")
+REFERRAL_ID = os.environ.get("POLYMARKET_REFERRAL_ID", "")
+
+# ── Category emoji map (v7: added token/crypto emojis) ─────────────────────────
+CATEGORY_EMOJI = {
+    "politics": "🇺🇸", "us-politics": "🇺🇸", "elections": "🗳️",
+    "geopolitics": "🌍", "world": "🌍", "china": "🇨🇳",
+    "europe": "🇪🇺", "middle-east": "🌍", "russia": "🇷🇺",
+    "ukraine": "🇺🇦", "trade": "📦", "tariffs": "📦",
+    "iran": "🇮🇷", "israel": "🇮🇱", "gaza": "🇵🇸",
+    "economy": "📊", "fed": "🏦", "inflation": "📈",
+    "crypto": "₿", "bitcoin": "₿", "btc": "₿", "ethereum": "⟠", "eth": "⟠", "solana": "◎",
+    "markets": "📈", "stocks": "📈", "finance": "💰",
+    "ai": "🤖", "tech": "💻", "science": "🔬",
+    "mrbeast": "🎬", "youtube": "📺", "entertainment": "🎬",
+    "culture": "🎭", "awards": "🏆", "music": "🎵", "movies": "🎬",
+    "sports": "⚽", "mls": "⚽", "nba": "🏀", "nfl": "🏈",
+    "ufc": "🥊", "mma": "🥊", "boxing": "🥊",
+    "mlb": "⚾", "nhl": "🏒", "f1": "🏎️",
+    "tennis": "🎾", "golf": "⛳", "cricket": "🏏",
+    "legal": "⚖️", "health": "🏥", "energy": "⚡",
+    "climate": "🌡️", "space": "🚀",
+    "ukraine": "🇺🇦", "russia-ukraine": "🇺🇦",
+    "peru": "🇵🇪", "ecuador": "🇪🇨", "brazil": "🇧🇷", "argentina": "🇦🇷",
+    "mexico": "🇲🇽", "colombia": "🇨🇴", "chile": "🇨🇱",
+    "india": "🇮🇳", "pakistan": "🇵🇰", "japan": "🇯🇵", "korea": "🇰🇷",
+    "australia": "🇦🇺", "canada": "🇨🇦", "turkey": "🇹🇷",
+    "nigeria": "🇳🇬", "south-africa": "🇿🇦", "egypt": "🇪🇬",
+    "philippines": "🇵🇭", "indonesia": "🇮🇩", "taiwan": "🇹🇼",
+    "iran": "🇮🇷", "lebanon": "🇱🇧", "syria": "🇸🇾", "yemen": "🇾🇪",
+    "uk": "🇬🇧", "france": "🇫🇷", "germany": "🇩🇪",
+    "italy": "🇮🇹", "spain": "🇪🇸", "poland": "🇵🇱",
+    "election": "🗳️", "runoff": "🗳️", "voting": "🗳️", "referendum": "🗳️",
+    "nbl": "🏀", "wnba": "🏀", "euroleague": "🏀",
+    "cba": "🏀", "bkcba": "🏀", "chinese-basketball": "🏀",
+    "youtube": "🎬", "twitch": "🎮", "streaming": "📺",
+    "tariff": "📦", "tariffs": "📦", "trade-war": "📦",
+    "nuclear": "☢️", "sanctions": "🚫",
+    "fed-rate": "🏦", "interest-rate": "🏦", "rate-cut": "🏦",
+    "oil": "🛢️", "opec": "🛢️", "natural-gas": "🛢️",
+    "war": "⚔️", "conflict": "⚔️", "military": "⚔️",
+    "musk": "🚀", "elon-musk": "🚀", "elon_musk": "🚀",
+    "trump": "🇺🇸", "biden": "🇺🇸", "harris": "🇺🇸",
+    "putin": "🇷🇺", "zelensky": "🇺🇦", "netanyahu": "🇮🇱",
+    "macron": "🇫🇷", "modi": "🇮🇳",
+    "mrbeast": "🎬", "mr-beast": "🎬",
+    "esports": "🎮", "counter-strike": "🎮", "cs2": "🎮", "csgo": "🎮",
+    "fokus": "🎮", "map-handicap": "🎮",
+    "dota": "🎮", "dota2": "🎮", "league-of-legends": "🎮", "lol": "🎮",
+    "valorant": "🎮", "overwatch": "🎮", "call-of-duty": "🎮", "cod": "🎮",
+    "faze": "🎮", "navi": "🎮", "fnatic": "🎮", "g2": "🎮",
+    "cybershoke": "🎮",
+    "la-liga": "⚽", "la_liga": "⚽", "laliga": "⚽",
+    "real-madrid": "⚽", "barcelona": "⚽", "atletico": "⚽",
+    # v7: token / crypto emojis
+    "token": "🪙", "airdrop": "🪙", "token-launch": "🪙",
+    "axiom": "🪙", "defi": "🪙",
+}
+DEFAULT_EMOJI = "📌"
+
+EMOJI_PRIORITY = [
+    "bitcoin", "btc", "ethereum", "eth", "solana", "sol", "crypto",
+    "nba", "nfl", "mlb", "nhl", "mls", "nbl", "wnba",
+    "ufc", "mma", "boxing", "f1", "tennis", "golf", "cricket",
+    "epl", "premier-league", "la-liga", "laliga", "serie-a", "bundesliga", "ligue-1",
+    "champions-league",
+    "esports", "e-sports", "counter-strike", "cs2", "csgo",
+    "valorant", "dota", "league-of-legends", "faze", "cybershoke",
+    "musk", "elon-musk", "trump", "biden", "harris",
+    "putin", "zelensky", "netanyahu", "macron", "modi",
+    "mrbeast", "mr-beast",
+    "ukraine", "russia", "israel", "iran", "china", "taiwan",
+    "peru", "ecuador", "brazil", "india", "japan", "australia",
+    "uk", "france", "germany",
+    "ai", "tech", "science", "space",
+    "geopolitics", "politics", "us-politics", "elections", "election",
+    "runoff", "voting", "referendum",
+    "economy", "fed", "inflation", "trade", "tariffs",
+    "climate", "energy", "oil", "nuclear",
+    "legal", "war", "conflict", "military", "sanctions",
+    "culture", "entertainment", "youtube", "streaming",
+    "sports", "football", "soccer", "basketball", "baseball", "hockey",
+    # v7: token markets
+    "token", "airdrop", "token-launch", "axiom", "defi",
+]
+
+# ── Headline cleaning ───────────────────────────────────────────────────────────
+def clean_headline(raw: str) -> tuple[str, str]:
+    h = raw.strip().strip('"').strip("'")
+    h = re.sub(r"\s*[-–—|]\s*[A-Z][A-Za-z\s.]{2,30}$", "", h)
+    h = re.sub(r"^(breaking|exclusive|update|watch|live|opinion|analysis):\s*",
+               "", h, flags=re.IGNORECASE)
+    if len(h) > 70:
+        h = h[:67].rsplit(" ", 1)[0] + "..."
+    if h:
+        h = h[0].upper() + h[1:]
+    return h, (h[0].lower() + h[1:]) if h else ""
+
+# ── Emoji picking ──────────────────────────────────────────────────────────────
+def get_emoji(tag_slugs: list[str], question: str = "") -> str:
+    slug_set = set(s.lower() for s in tag_slugs)
+    q_lower = question.lower()
+    for key in EMOJI_PRIORITY:
+        if key not in CATEGORY_EMOJI:
+            continue
+        emoji = CATEGORY_EMOJI[key]
+        for slug in slug_set:
+            if key == slug:
+                return emoji
+        for slug in slug_set:
+            if len(slug) > len(key) and key in slug:
+                return emoji
+        if len(key) >= 4 and key in q_lower:
+            return emoji
+    # v7: lower threshold for sports/finance keywords in question
+    sports_q_keywords = {"nba": "🏀", "nfl": "🏈", "mlb": "⚾", "nhl": "🏒",
+                         "ufc": "🥊", "f1": "🏎️", "ncaaf": "🏈", "ncaab": "🏀",
+                         "spx": "📈", "wti": "🛢️", "oil": "🛢️",
+                         "rookie": "🏀", "award": "🏆", "trophy": "🏆",
+                         "crude": "🛢️", "ether": "⟠", "btc": "₿", "eth": "⟠",
+                         "atp": "🎾", "tennis": "🎾", "wimbledon": "🎾", "golf": "⛳", "pga": "⛳",
+                         "ufc": "🥊", "f1": "🏎️", "ncaaf": "🏈", "ncaab": "🏀",
+                         "spx": "📈", "wti": "🛢️", "oil": "🛢️",
+                         "rookie": "🏀", "award": "🏆", "trophy": "🏆",
+                         "crude": "🛢️", "ether": "⟠", "btc": "₿", "eth": "⟠"}
+    q_words = set(q_lower.split())
+    for kw, emo in sports_q_keywords.items():
+        if kw in q_words or kw in q_lower:
+            return emo
+    return DEFAULT_EMOJI
+
+# ── Question shortening ────────────────────────────────────────────────────────
+def shorten_question(question: str) -> str:
+    q = question.strip()
+    had_qmark = q.endswith("?")
+    if had_qmark:
+        q = q[:-1].strip()
+    if q.lower().startswith("will "):
+        q = q[5:].strip()
+    # v7 fix: "Will the price of Bitcoin be above X?" -> "Bitcoin above X?"
+    q = re.sub(r"^the price of \w+ (be|has|have|will)\s+", "", q, flags=re.IGNORECASE)
+    q = re.sub(r"\s+(on|by|before|after)\s+\d{4}-\d{2}-\d{2}$", "", q, flags=re.IGNORECASE)
+    q = re.sub(
+        r"\s+(on|by|before|after)\s+"
+        r"(January|February|March|April|May|June|July|August|September|October|November|December)"
+        r"\s+\d{1,2},?\s*\d{0,4}$",
+        "", q, flags=re.IGNORECASE
+    )
+    q = re.sub(r"\s+in\s+20\d{2}$", "", q, flags=re.IGNORECASE)
+    q = re.sub(
+        r"\s+from\s+"
+        r"(January|February|March|April|May|June|July|August|September|October|November|December)"
+        r"\s+\d{1,2}\s+to\s+"
+        r"(January|February|March|April|May|June|July|August|September|October|November|December)"
+        r"\s+\d{1,2},?\s*\d{0,4}$",
+        "", q, flags=re.IGNORECASE
+    )
+    q = re.sub(
+        r"\s*(?:get\s+)?between\s+[\d.,]+\s+and\s+[\d.,]+\s*(million|billion|[KkMmBb])?\s*",
+        " ", q, flags=re.IGNORECASE
+    )
+    q = re.sub(r"\s+\d+-\d+\s+", " ", q)
+    q = re.sub(r"\s+", " ", q).strip()
+    if q:
+        q = q[0].upper() + q[1:]
+    q = q + ("?" if had_qmark else "")
+    if len(q) > 55:
+        q = q[:52].rsplit(" ", 1)[0] + "...?"
+    return q
+
+def shorten_for_lead(question: str, max_chars: int = 45) -> str:
+    q = shorten_question(question)
+    if len(q) > max_chars:
+        q = q[:max_chars - 4].rsplit(" ", 1)[0] + "..."
+    return q
+
+# ── Volume formatting ───────────────────────────────────────────────────────────
+def format_volume(vol: float) -> str:
+    if vol >= 1_000_000:
+        return f"${vol/1_000_000:.1f}M"
+    elif vol >= 1_000:
+        return f"${vol/1_000:.0f}K"
+    else:
+        return f"${vol:,.0f}"
+
+# ── Context generation (template) ──────────────────────────────────────────────
+TWEET_HEADLINE_MAX = 45
+
+CONTEXT_WITH_NEWS_UP = [
+    "{headline_cleaned} ({source}). Up {delta}pp.",
+    "Up {delta}pp. {headline_cleaned} — {source}",
+    "{headline_cleaned} ({source}). Odds climbed on the back of this.",
+    "Market up {delta}pp — {headline_cleaned} ({source})",
+]
+CONTEXT_WITH_NEWS_DOWN = [
+    "{headline_cleaned} ({source}). Down {delta}pp.",
+    "Down {delta}pp. {headline_cleaned} — {source}",
+    "{headline_cleaned} ({source}). Odds fell sharply.",
+    "Market down {delta}pp — {headline_cleaned} ({source})",
+]
+CONTEXT_NO_NEWS_UP = [
+    "Market pricing in a notably higher probability than 24h ago. {vol} traded.",
+    "Significant upward repricing — {vol} in volume. Something shifted overnight.",
+    "Odds moved sharply toward Yes. {vol} of conviction behind the move.",
+    "A {delta}pp swing on {vol} volume suggests new information entered the market.",
+    "Steady buying pressure pushed this up {delta}pp. {vol} changed hands.",
+]
+CONTEXT_NO_NEWS_DOWN = [
+    "Market repricing notably lower — {vol} traded. Sentiment shifting.",
+    "Sharp move toward No. {vol} in volume suggests a meaningful signal.",
+    "Odds dropped {delta}pp on {vol} — the market is growing skeptical.",
+    "Downward pressure on {vol} volume. Something changed overnight.",
+    "Sellers drove this down {delta}pp. {vol} of conviction behind the move.",
+]
+
+def generate_context_template(market: dict, used_patterns: set) -> str:
+    has_news = bool(market.get("news_headline"))
+    going_up = market["delta_pp"] > 0
+
+    if has_news and going_up:
+        pool = CONTEXT_WITH_NEWS_UP
+    elif has_news and not going_up:
+        pool = CONTEXT_WITH_NEWS_DOWN
+    elif going_up:
+        pool = CONTEXT_NO_NEWS_UP
+    else:
+        pool = CONTEXT_NO_NEWS_DOWN
+
+    available = [p for p in pool if p not in used_patterns]
+    if not available:
+        available = pool
+    pattern = random.choice(available)
+    used_patterns.add(pattern)
+
+    headline_cleaned = ""
+    source = market.get("news_source", "") or ""
+    if has_news:
+        headline_cleaned, _ = clean_headline(market["news_headline"])
+
+    return pattern.format(
+        delta=f"{market['abs_delta_pp']:.0f}",
+        vol=format_volume(market["volume_24h"]),
+        headline_cleaned=headline_cleaned,
+        source=source,
+    )
+
+def generate_context_llm(market: dict) -> str | None:
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    anthropic_base = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1")
+    openai_base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+
+    news_block = ""
+    if market.get("news_headline"):
+        cleaned, _ = clean_headline(market["news_headline"])
+        news_block = (
+            f"\nRecent related headline: {cleaned}\n"
+            f"Source: {market.get('news_source', 'unknown')}\n"
+            f"\nUse this headline to ground your explanation. "
+            f"Do NOT repeat the headline verbatim. Do NOT include the source name. "
+            f"Explain the real-world event in your own words.\n"
+        )
+    else:
+        news_block = "\nNo specific news headline was found for this market.\nGive your best informed guess at the catalyst.\n"
+
+    prompt = (
+        "You are a sharp prediction market analyst writing for Twitter. "
+        "Write ONE sentence (max 25 words) explaining the most likely REASON this market moved. "
+        "Do NOT restate the probability, direction, or volume numbers. "
+        "Focus only on the real-world catalyst.\n"
+        "If a news headline is provided, use it to ground your explanation. "
+        "If no headline is provided, give your best informed guess. "
+        "Do NOT start with 'The' or 'This'. Use active voice. Be specific.\n\n"
+        f"Market: {market['question']}\n"
+        f"Direction: {'UP' if market['delta_pp'] > 0 else 'DOWN'} "
+        f"{market['abs_delta_pp']:.0f}pp in 24h\n"
+        f"Current probability: {market['price_now']*100:.0f}%\n"
+        f"Tags: {', '.join(market.get('tag_slugs', []))}\n"
+        f"{news_block}\n"
+        "Your one-line context (no preamble, no quotes):"
+    )
+
+    if anthropic_key:
+        import requests as req
+        resp = req.post(
+            f"{anthropic_base}/messages",
+            headers={
+                "x-api-key": anthropic_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
+                "max_tokens": 8000 if os.environ.get("LLM_MAX_TOKENS") is None else int(os.environ.get("LLM_MAX_TOKENS")),
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["content"][0]["text"].strip().rstrip(".")
+
+    elif openai_key:
+        import requests as req
+        resp = req.post(
+            f"{openai_base}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {openai_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                "max_tokens": 8000 if os.environ.get("LLM_MAX_TOKENS") is None else int(os.environ.get("LLM_MAX_TOKENS")),
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip().rstrip(".")
+
+    return None
+
+# ── Market URL builder ─────────────────────────────────────────────────────────
+def make_market_url(market: dict) -> str:
+    # v7: prefer market_url from scanner (canonical URL from slugs)
+    base = market.get("market_url")
+    if not base or base == "https://polymarket.com":
+        event_slug = market.get("event_slug", "")
+        market_slug = market.get("market_slug", "")
+        if event_slug and market_slug:
+            base = f"https://polymarket.com/event/{event_slug}/{market_slug}"
+        elif market_slug:
+            base = f"https://polymarket.com/event/{market_slug}"
+        else:
+            base = "https://polymarket.com"
+    if REFERRAL_ID and REFERRAL_ID != "__FILL_IN__":
+        sep = "&" if "?" in base else "?"
+        return f"{base}{sep}ref={REFERRAL_ID}"
+    return base
+
+# ── Lead tweet composition (v7: exactly 3 movers + Show more) ─────────────────
+def _extract_lead_entity(market: dict) -> str | None:
+    q = market.get("question", "").lower()
+    keywords = [
+        "mrbeast", "mr beast", "trump", "biden", "harris",
+        "bitcoin", "btc", "ethereum", "eth",
+        "ukraine", "russia", "israel", "gaza", "iran", "china", "taiwan",
+        "fed ", "openai", "tesla", "nvidia",
+        # v7: award races
+        "art ross", "hart trophy", "mvp",
+        # v7: NCAA
+        "ncaa",
+        # v7: token
+        "token", "axiom",
+    ]
+    for kw in keywords:
+        if kw in q:
+            return kw.replace(" ", "")
+    return None
+
+def _pick_hook_mover(lead_picks: list) -> dict | None:
+    if not lead_picks:
+        return None
+    def hook_score(m):
+        score = 0
+        if m.get("news_headline"):
+            score += 100
+        if not m.get("is_crypto", False):
+            score += 50  # v8: prefer non-crypto for hook
+        score += m.get("editorial_weight", 1.0) * 10
+        score += min(m.get("volume_24h", 0) / 100000, 5)
+        return score
+    return max(lead_picks, key=hook_score)
+
+
+
+GENERIC_TITLES = [
+    "Prediction markets are moving. Here's what changed.",
+    "What the smart money is saying today",
+    "The biggest bets on tomorrow, updated today",
+    "Odds shifted overnight — here's where the money went",
+    "Prediction markets never sleep. Today's biggest moves:",
+    "Where traders are putting real money right now",
+    "The market knows something. Here's what moved.",
+    "Today's prediction market shakeup",
+    "What changed in the world overnight, according to traders",
+    "Real money, real odds, real moves — today's update",
+]
+
+def generate_lead_title(movers: list, date_fmt: str) -> str:
+    """v10: Try LLM for fresh generic title, fall back to rotating pool."""
+    llm_title = _generate_lead_title_llm_generic(movers, date_fmt)
+    if llm_title:
+        return llm_title
+    import datetime as dt
+    day_index = dt.datetime.strptime(date_fmt, "%b %d").timetuple().tm_yday % len(GENERIC_TITLES)
+    return GENERIC_TITLES[day_index]
+
+def _generate_lead_title_llm_generic(movers: list, date_fmt: str) -> str | None:
+    """v10: LLM generic title — must NOT mention any specific market topic."""
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    anthropic_base = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1")
+    openai_base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    if not (anthropic_key or openai_key):
+        return None
+    topics = [m.get("question", "")[:40] for m in movers[:3]]
+    prompt_lines = [
+        "Write a ONE-LINE title (max 55 chars) for a daily prediction market Twitter thread.",
+        "",
+        "Rules:",
+        "- Do NOT mention any specific market, event, person, team, or topic",
+        "- Do NOT use the words 'daily', 'movers', or 'biggest swings'",
+        "- The title should be GENERIC — it should work regardless of today's markets",
+        "- Create curiosity: make people want to click and see what moved",
+        "- Be conversational, slightly provocative, like a sharp analyst's tweet",
+        "- No emojis, no hashtags",
+        "",
+        "Good examples:",
+        '- "The market knows something we don\'t"',
+        '- "Where the smart money went overnight"',
+        '- "Three odds that flipped while you slept"',
+        '- "Traders are repricing everything right now"',
+        '- "Prediction markets just got interesting"',
+        "",
+        "Today's themes (for tone only, do NOT reference these): " + ", ".join(topics),
+        "",
+        "Your title (one line, max 55 chars, no quotes):",
+    ]
+    prompt = "\n".join(prompt_lines)
+    try:
+        import requests as req
+        if anthropic_key:
+            r = req.post(
+                f"{anthropic_base}/messages",
+                headers={"x-api-key": anthropic_key, "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model": os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"), "max_tokens": 8000 if os.environ.get("LLM_MAX_TOKENS") is None else int(os.environ.get("LLM_MAX_TOKENS")),
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=15)
+            r.raise_for_status()
+            title = r.json()["content"][0]["text"].strip().strip('"').strip("'")
+        elif openai_key:
+            r = req.post(
+                f"{openai_base}/chat/completions",
+                headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                json={"model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"), "max_tokens": 8000 if os.environ.get("LLM_MAX_TOKENS") is None else int(os.environ.get("LLM_MAX_TOKENS")),
+                      "messages": [{"role": "user", "content": prompt}]},
+                timeout=15)
+            r.raise_for_status()
+            title = r.json()["choices"][0]["message"]["content"].strip().strip('"').strip("'")
+        else:
+            return None
+        title_lower = title.lower()
+        for m in movers[:5]:
+            for w in m.get("question", "").lower().split():
+                if len(w) >= 5 and w in title_lower and w not in {
+                        "market", "today", "where", "about", "moved", "price",
+                        "above", "below", "opens", "prediction", "before"}:
+                    return None
+        if len(title) > 60:
+            title = title[:57] + "..."
+        if len(title) < 10:
+            return None
+        return title
+    except Exception as e:
+        print(f" [COMPOSE] Title LLM failed: {e}", file=sys.stderr)
+        return None
+
+
+
+def compose_lead_tweet(movers: list) -> str:
+    date_fmt = datetime.strptime(DATE, "%Y-%m-%d").strftime("%b %-d")
+
+    # v10: select exactly 3 diverse NON-CRYPTO movers for the lead
+    lead_picks = []
+    used_entities = set()
+    for m in movers:
+        if len(lead_picks) >= 3:
+            break
+        if m.get("is_crypto", False):
+            continue
+        entity = _extract_lead_entity(m)
+        if entity and entity in used_entities:
+            continue
+        lead_picks.append(m)
+        if entity:
+            used_entities.add(entity)
+    while len(lead_picks) < 3 and len(lead_picks) < len(movers):
+        for m in movers:
+            if m not in lead_picks:
+                lead_picks.append(m)
+                break
+
+    # v10: generic rotating title (LLM-enhanced when available)
+    title = generate_lead_title(movers, date_fmt)
+
+    for max_q_len in [40, 34, 28]:
+        mover_lines = []
+        for i, m in enumerate(lead_picks[:3]):
+            emoji = m.get("emoji") or get_emoji(m.get("tag_slugs", []), m.get("question", ""))
+            short_q = shorten_for_lead(m["question"], max_chars=max_q_len)
+            sign = "+" if m["delta_pp"] > 0 else ""
+            # v10: always show outcome label in lead
+            outcome = m.get("primary_outcome", "Yes")
+            if outcome.lower() not in ("yes", "no", "true", "false"):
+                short_outcome = (outcome[:15] + ":") if len(outcome) <= 15 else (outcome[:12] + "...:")
+                line = (
+                    f"{i+1}. {emoji} {short_q}\n"
+                    f" {short_outcome} {m['price_24h_ago_pct']:.0f}%\u2192{m['price_now_pct']:.0f}% "
+                    f"({sign}{m['delta_pp']:.0f}pp)"
+                )
+            else:
+                line = (
+                    f"{i+1}. {emoji} {short_q} "
+                    f"{m['price_24h_ago_pct']:.0f}%\u2192{m['price_now_pct']:.0f}% "
+                    f"({sign}{m['delta_pp']:.0f}pp)"
+                )
+            mover_lines.append(line)
+        body = "\n".join(mover_lines)
+        full = f"{title}\n\n" + body + "\n\nShow more"
+        if count_tweet_chars(full) <= 280:
+            return full
+    return full  # last resort
+
+
+
+# ── Reply composition ──────────────────────────────────────────────────────────
+def compose_reply(market: dict) -> str:
+    emoji = market.get("emoji") or get_emoji(market.get("tag_slugs", []), market.get("question", ""))
+    short_q = shorten_question(market["question"])
+    url = make_market_url(market)
+    vol_str = format_volume(market["volume_24h"])
+    direction_word = "up from" if market["delta_pp"] > 0 else "down from"
+    context = market.get("context_line", "")
+
+    # v7: DEFENSIVE — if context somehow still empty, generate inline
+    if not context or len(context.strip()) < 10:
+        if market["delta_pp"] > 0:
+            context = f"A {market['abs_delta_pp']:.0f}pp swing on {vol_str} volume suggests new information."
+        else:
+            context = f"Dropped {market['abs_delta_pp']:.0f}pp on {vol_str} volume \u2014 market growing skeptical."
+
+    outcome = market.get("primary_outcome", "Yes")
+    # v10: ALWAYS show the outcome label so readers know what the % means
+    pct_line = f"{outcome}: {market['price_now_pct']:.0f}% ({direction_word} {market['price_24h_ago_pct']:.0f}% yesterday)"
+
+    lines = [
+        f"{emoji} {short_q}",
+        pct_line,
+        "",
+        context,
+    ]
+    context_lower = context.lower()
+    vol_mentioned = any(kw in context_lower for kw in ["vol", "volume", "traded", "changed hands"])
+    if not vol_mentioned:
+        lines.append(f"{vol_str} vol")
+    lines.extend(["", f"\u2192 {url}"])
+    return "\n".join(lines)
+
+# ── Validation ──────────────────────────────────────────────────────────────────
+def validate_tweet(text: str, label: str) -> list[str]:
+    issues = []
+    effective = count_tweet_chars(text)
+    if effective > 280:
+        issues.append(f"{label}: {effective} effective chars (max 280)")
+    if "{{" in text or "}}" in text:
+        issues.append(f"{label}: contains unresolved template placeholder")
+    if "__FILL_IN__" in text:
+        issues.append(f"{label}: contains __FILL_IN__ placeholder")
+    if "SUBSTACK_URL" in text:
+        issues.append(f"{label}: contains SUBSTACK_URL placeholder")
+    return issues
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+def main():
+    if not INPUT_FILE.exists():
+        print(f"[COMPOSE] ERROR: {INPUT_FILE} not found", file=sys.stderr)
+        sys.exit(1)
+
+    with open(INPUT_FILE) as f:
+        ranked_data = json.load(f)
+
+    movers = ranked_data.get("movers", [])
+    if not movers:
+        print("[COMPOSE] ERROR: No movers in ranked data.", file=sys.stderr)
+        sys.exit(1)
+
+    # ── Generate context lines ────────────────────────────────────────────────
+    print(f"[COMPOSE] Mode: {COMPOSE_MODE}. Generating context for {len(movers)} movers...")
+    used_patterns = set()
+
+    for m in movers:
+        context = None
+        if COMPOSE_MODE == "llm":
+            try:
+                context = generate_context_llm(m)
+            except Exception as e:
+                print(f" [WARN] LLM failed for '{m['question'][:40]}': {e}")
+
+        if context is None:
+            context = generate_context_template(m, used_patterns)
+
+        m["context_line"] = context
+        print(f"  [{m['rank']}] {context}")
+
+    # ── SAFETY NET (v7): every mover MUST have a useful context_line ───────────
+    for m in movers:
+        context = m.get("context_line", "").strip()
+        if len(context) < 15:
+            print(f" [WARN] Reply {m.get('rank','?')} has short context, regenerating...")
+            try:
+                m["context_line"] = generate_context_template(m, used_patterns)
+            except Exception:
+                pass
+
+        context = m.get("context_line", "").strip()
+        if len(context) < 15:
+            vol_str = format_volume(m["volume_24h"])
+            delta = m["abs_delta_pp"]
+            if m["delta_pp"] > 0:
+                m["context_line"] = (
+                    f"A {delta:.0f}pp swing on {vol_str} volume "
+                    f"suggests new information entered the market."
+                )
+            else:
+                m["context_line"] = (
+                    f"Dropped {delta:.0f}pp on {vol_str} volume \u2014 "
+                    f"the market is growing skeptical."
+                )
+            print(f" [WARN] Reply {m.get('rank','?')} safety-net applied: {m['context_line'][:60]}...")
+
+    # v8: reorder movers — non-crypto first, crypto last
+    non_crypto = [m for m in movers if not m.get("is_crypto", False)]
+    crypto = [m for m in movers if m.get("is_crypto", False)]
+    movers_ordered = non_crypto + crypto
+    for i, m in enumerate(movers_ordered):
+        m["display_rank"] = i + 1
+
+    # ── Compose tweets ────────────────────────────────────────────────────────
+    lead = compose_lead_tweet(movers_ordered)
+    replies = [compose_reply(m) for m in movers_ordered]
+
+    # ── Validate ──────────────────────────────────────────────────────────────
+    all_issues = []
+    all_issues.extend(validate_tweet(lead, "LEAD"))
+    for i, reply in enumerate(replies):
+        all_issues.extend(validate_tweet(reply, f"REPLY_{i+1}"))
+
+    if all_issues:
+        print("\n[COMPOSE] VALIDATION ISSUES:")
+        for issue in all_issues:
+            print(f"  WARNING: {issue}")
+
+    fatal = [i for i in all_issues if "placeholder" in i or "FILL_IN" in i]
+    if fatal:
+        print("[COMPOSE] FATAL: Placeholder leaks detected. Fix config before publishing.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    # Length safety net
+    for i, reply in enumerate(replies):
+        if count_tweet_chars(reply) > 280:
+            lines = reply.split("\n")
+            # Try dropping the extra vol line
+            if len(lines) > 5:
+                lines = [l for l in lines if "vol" not in l.lower() or "vol" in lines[lines.index(l)-1].lower()]
+            shortened = "\n".join(lines)
+            if count_tweet_chars(shortened) <= 280:
+                replies[i] = shortened
+            else:
+                replies[i] = reply[:277] + "..."
+            print(f" [FIX] Reply {i+1} truncated -> {count_tweet_chars(replies[i])} chars")
+
+    output = {
+        "date": DATE,
+        "compose_mode": COMPOSE_MODE,
+        "lead": lead,
+        "replies": replies,
+        "validation_issues": all_issues,
+    }
+
+    with open(TWEETS_FILE, "w") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+
+    lead_eff = count_tweet_chars(lead)
+    mover_count_in_lead = lead.count("%") // 2  # each mover has two percentages
+    print(f"\n[COMPOSE] Lead: {lead_eff} effective chars | {mover_count_in_lead} movers | ends with 'Show more': {lead.strip().endswith('Show more')}")
+    print(f"[COMPOSE] {len(replies)} replies composed. Written to {TWEETS_FILE}")
+    print(f"\n=== LEAD TWEET ===\n{lead}")
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()

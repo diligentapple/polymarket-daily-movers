@@ -1,0 +1,96 @@
+=== SAMPLE OUTPUT — Polymarket Daily Mover Thread ===
+
+LEAD TWEET:
+The market knows something. Here's what moved.
+
+1. 🏀 Cooper Flagg win the 2025–26 NBA Rookie of the Year? 24%→64% (+40pp)
+2. 🇺🇦 Ukraine re-enter Rodynske? 82%→48% (-34pp)
+3. 📌 MrBeast's next video views on week 1? 64%→27% (-36pp)
+
+Show more
+
+---
+
+REPLY 1 — Cooper Flagg NBA Rookie of the Year
+🏀 Cooper Flagg win the 2025–26 NBA Rookie of the Year?
+Yes: 64% (up from 24% yesterday)
+
+Market up 40pp — Kia Rookie Ladder: Cooper Flagg, Kon Knueppel try to solidify... (NBA)
+$51K vol
+
+→ https://polymarket.com/event/nba-rookie-of-the-year-873
+
+---
+
+REPLY 2 — Ukraine re-enter Rodynske
+🇺🇦 Ukraine re-enter Rodynske?
+Yes: 48% (down from 82% yesterday)
+
+Sharp move toward No. $124K in volume suggests a meaningful signal.
+
+→ https://polymarket.com/event/will-ukraine-re-enter-rodynske-by-april-30
+
+---
+
+REPLY 3 — MrBeast next video views
+📌 MrBeast's next video views on week 1?
+Yes: 27% (down from 64% yesterday)
+
+Sellers drove this down 36pp. $28K of conviction behind the move.
+$28K vol
+
+→ https://polymarket.com/event/of-views-of-next-mrbeast-video-on-week-1-794
+
+---
+
+REPLY 4 — S&P 500 open up/down
+📈 S&P 500 (SPX) Opens Up or Down?
+Up: 52% (up from 28% yesterday)
+
+Will S&P 500 Open Up Or Down On April 2? (Benzinga). Up 24pp.
+$131K vol
+
+→ https://polymarket.com/event/spx-opens-up-or-down-on-april-6-2026
+
+---
+
+REPLY 5 — CS2 esports (crypto cap forces to end in this example)
+🎮 Counter-Strike: FOKUS vs Wildcard - Map 2 Winner
+FOKUS: 74% (up from 50% yesterday)
+
+Odds moved sharply toward Yes. $27K of conviction behind the move.
+$27K vol
+
+→ https://polymarket.com/event/cs2-fokus-wc1-2026-04-06
+
+---
+
+REPLY 6 — Elon Musk tweets
+🚀 Elon Musk post tweets?
+Yes: 68% (up from 46% yesterday)
+
+Significant upward repricing — $67K in volume. Something shifted overnight.
+
+→ https://polymarket.com/event/elon-musk-of-tweets-april-4-april-6
+
+---
+
+REPLY 7 — LoL esports
+🎮 LoL: GIANTX vs Team Heretics - Game 1 Winner
+GIANTX: 62% (up from 38% yesterday)
+
+GIANTX vs Team Heretics 2–1 | LEC (Sheep Esports). Odds climbed on the back of this.
+$21K vol
+
+→ https://polymarket.com/event/lol-gx-th-2026-04-06
+
+---
+
+REPLY 8 — Bitcoin (always last, after crypto cap)
+₿ Above $68,000?
+Yes: 86% (up from 26% yesterday)
+
+Up 61pp. Bitcoin Soars: BTC Price Surges Above $68,000 in Major Market Rally — CryptoRank
+$187K vol
+
+→ https://polymarket.com/event/bitcoin-above-on-april-6
