@@ -40,7 +40,7 @@ def rank_llm(movers: list) -> list[int] | None:
         "Rank these prediction markets from MOST to LEAST engaging for a Twitter audience.\n\n"
         "High engagement: major geopolitics, entertainment, surprising moves, big volume.\n"
         "Low engagement: niche esports, crypto price markets (up/down), obscure sports.\n"
-        "Crypto price markets go LAST regardless of other factors.\n\n"
+        "If you don't recognize the teams or event, rank it lower — obscure markets are low engagement.\n\n"
         "Markets:\n" + "\n\n".join(lines) + "\n\n"
         "Respond with ONLY a JSON array of market numbers in engagement order.\n"
         "Example: [3, 1, 5, 2, 4, 8, 7, 6]\n"

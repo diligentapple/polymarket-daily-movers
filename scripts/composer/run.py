@@ -633,8 +633,8 @@ def validate_tweet(text: str, label: str) -> list[str]:
 def generate_all_contexts_llm(movers: list) -> dict[int, str]:
     """
     v12 SPEED: Generate context lines for ALL movers in ONE LLM call.
-    Returns dict mapping rank â context string. Falls back to {} on failure.
-    Saves 7+ LLM round trips (was: 8 sequential calls â now: 1 batch call).
+    Returns dict mapping rank → context string. Falls back to {} on failure.
+    Saves 7+ LLM round trips (was: 8 sequential calls → now: 1 batch call).
     """
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
@@ -654,7 +654,7 @@ def generate_all_contexts_llm(movers: list) -> dict[int, str]:
             news = " | No news headline found"
         market_blocks.append(
             f"{m['rank']}. {m['question'][:80]}\n"
-            f"   {'UP' if m['delta_pp'] > 0 else 'DOWN'} {m['abs_delta_pp']:.0f}pp â "
+            f"   {'UP' if m['delta_pp'] > 0 else 'DOWN'} {m['abs_delta_pp']:.0f}pp → "
             f"{m['price_now']*100:.0f}% | Vol: ${m['volume_24h']:,.0f}{news}"
         )
 
@@ -738,7 +738,7 @@ def main():
         if batch_contexts:
             print(f"[COMPOSE] LLM returned {len(batch_contexts)} contexts in batch")
         else:
-            print("[COMPOSE] Batch LLM failed â falling back to individual calls")
+            print("[COMPOSE] Batch LLM failed — falling back to individual calls")
 
     for m in movers:
         context = batch_contexts.get(m.get("rank"))

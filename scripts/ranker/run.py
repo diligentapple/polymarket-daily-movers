@@ -162,20 +162,21 @@ if _WEIGHTS_CONFIG.exists():
         EDITORIAL_WEIGHT = None
 
 if not globals().get('EDITORIAL_WEIGHT'):
-        EDITORIAL_WEIGHT = {
-    "geopolitics": 1.8, "politics": 1.6, "us-politics": 1.6,
-    "elections": 1.5, "trade": 1.5, "tariffs": 1.5,
-    "economy": 1.5, "fed": 1.5, "inflation": 1.4,
-    "ai": 1.4, "tech": 1.3, "legal": 1.3,
-    "ukraine": 1.6, "russia": 1.5, "israel": 1.6,
-    "china": 1.5, "iran": 1.5, "taiwan": 1.5,
-    "middle-east": 1.5, "climate": 1.3, "energy": 1.3, "space": 1.3,
-    "crypto": 1.0, "culture": 1.0, "entertainment": 1.0,
-    "sports": 0.6, "mls": 0.6, "nba": 0.7, "nfl": 0.7,
-    "ufc": 0.7, "mma": 0.7, "nbl": 0.6,
-}
+    EDITORIAL_WEIGHT = {
+        "geopolitics": 1.8, "politics": 1.6, "us-politics": 1.6,
+        "elections": 1.5, "trade": 1.5, "tariffs": 1.5,
+        "economy": 1.5, "fed": 1.5, "inflation": 1.4,
+        "ai": 1.4, "tech": 1.3, "legal": 1.3,
+        "ukraine": 1.6, "russia": 1.5, "israel": 1.6,
+        "china": 1.5, "iran": 1.5, "taiwan": 1.5,
+        "middle-east": 1.5, "climate": 1.3, "energy": 1.3, "space": 1.3,
+        "crypto": 1.0, "culture": 1.0, "entertainment": 1.0,
+        "sports": 0.6, "mls": 0.6, "nba": 0.7, "nfl": 0.7,
+        "ufc": 0.7, "mma": 0.7, "nbl": 0.6,
+    }
 
-CRYPTO_UPDOWN_WEIGHT = 0.4
+if not globals().get('CRYPTO_UPDOWN_WEIGHT'):
+    CRYPTO_UPDOWN_WEIGHT = 0.4
 
 def is_crypto_updown(question: str) -> bool:
     return bool(re.search(r"(?i)(bitcoin|btc|ethereum|eth|solana|sol).*(up|down)", question))

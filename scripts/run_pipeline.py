@@ -170,14 +170,24 @@ def validate(date, stage_name):
             d = json.loads(f.read_text())
             lead = d.get("lead", "")
             replies = d.get("replies", [])
-            if not lead or len(lead) > 280: return False
+            # v12.1: use X-aware char counting (URLs = 23 chars via t.co)
+            import re as _re_v
+            def _count_chars(t):
+                urls = _re_v.compile(r"https?://\S+").findall(t)
+                c = len(t)
+                for u in urls:
+                    c -= len(u)
+                    c += 23
+                return c
+
+            if not lead or _count_chars(lead) > 280: return False
             if not replies: return False
             all_texts = [lead] + replies
             for text in all_texts:
                 if "{{" in text or "}}" in text or "__FILL_IN__" in text or "SUBSTACK_URL" in text:
                     log(f"VALIDATION FAIL: placeholder leak: {text[:80]}")
                     return False
-            return all(len(r) <= 280 for r in replies)
+            return all(_count_chars(r) <= 280 for r in replies)
     except Exception as e:
         log(f"VALIDATION ERROR: {e}")
         return False
@@ -231,15 +241,23 @@ def run_pipeline(date):
                     time.sleep(30)
 
         if ck["retries"][stage_name] >= MAX_RETRIES:
-            if stage_name == "NEWS_ENRICHING":
-                ranked_f = BRIEFS_DIR / date / "ranked.json"
-                enriched_f = BRIEFS_DIR / date / "enriched.json"
-                if ranked_f.exists():
-                    shutil.copy2(ranked_f, enriched_f)
-                    log(f"NEWS_ENRICHING failed — copied ranked.json to enriched.json, proceeding")
-                    ck["state"] = "COMPOSING"
-                    save_ck(ck)
-                    continue
+            if stage_name in NON_CRITICAL_STAGES:
+                log(f"{stage_name} failed after {MAX_RETRIES} retries — non-critical, skipping")
+                # Special fallback for NEWS_ENRICHING: copy ranked.json as enriched.json
+                if stage_name == "NEWS_ENRICHING":
+                    ranked_f = BRIEFS_DIR / date / "ranked.json"
+                    enriched_f = BRIEFS_DIR / date / "enriched.json"
+                    if ranked_f.exists() and not enriched_f.exists():
+                        shutil.copy2(ranked_f, enriched_f)
+                        log(f"  Copied ranked.json → enriched.json as fallback")
+                # Advance to next stage
+                next_idx = stage_idx + 1
+                if next_idx < len(STAGES):
+                    ck["state"] = STAGES[next_idx][0]
+                else:
+                    ck["state"] = "DONE"
+                save_ck(ck)
+                continue
             ck["state"] = f"FAILED_{stage_name}"
             save_ck(ck)
             alert(f"Pipeline failed at {stage_name}",

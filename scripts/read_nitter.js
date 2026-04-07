@@ -82,11 +82,25 @@ function stripRetweet(text) {
 }
 
 async function main() {
-  const instances = [
+  // v12.1: load instances from config if available, fall back to hardcoded
+  const fs = require('fs');
+  const path = require('path');
+  let instances = [
     'nitter.net',
     'nitter.privacydev.net',
     'nitter.poast.org',
+    'nitter.cz',
   ];
+  try {
+    const configPath = path.join(__dirname, '..', 'config', 'nitter_instances.txt');
+    const lines = fs.readFileSync(configPath, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length > 0) {
+      instances = lines;
+      console.error(`Loaded ${instances.length} Nitter instances from config`);
+    }
+  } catch (e) {
+    // Config not found — use defaults
+  }
 
   let xml = null;
   for (const inst of instances) {

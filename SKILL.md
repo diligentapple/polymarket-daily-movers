@@ -155,11 +155,15 @@ OPENAI_API_KEY=sk-...
 
 ## Emoji maps
 
-To fix a market that got 📌 when it should have a specific emoji, edit BOTH:
-- `scripts/emoji_picker/run.py` → `FALLBACK` dict
-- `scripts/composer/run.py` → `CATEGORY_EMOJI` dict
+To fix a market that got 📌, edit **one file**:
+- `config/emoji_map.json` — both emoji_picker and composer load from here
 
 For new sports leagues, also add the slug to `scripts/scanner/run.py` → `_SPORTS_KEYWORDS`.
+
+The `emoji_map.json` has three sections:
+- `"map"`: keyword → emoji mappings
+- `"priority"`: order in which keywords are checked (specific before generic)
+- `"default"`: fallback emoji when nothing matches (📌)
 
 ## Dependencies
 
