@@ -159,7 +159,7 @@ EMOJI_PRIORITY = [
 # Each tweet gets ONE theme label displayed as "emoji 𝗧𝗵𝗲𝗺𝗲"
 THEME_LABELS = {
     # Geopolitics & politics
-    "geopolitics": "Geopolitics", "politics": "Politics", "us-politics": "US Politics",
+    "geopolitics": "Geopolitics", "politics": "Politics", "us-politics": "Politics",
     "elections": "Elections", "election": "Elections",
     "ukraine": "Geopolitics", "russia": "Geopolitics", "israel": "Geopolitics",
     "iran": "Geopolitics", "china": "Geopolitics", "taiwan": "Geopolitics",
@@ -182,23 +182,30 @@ THEME_LABELS = {
     "crypto": "Crypto", "bitcoin": "Crypto", "btc": "Crypto",
     "ethereum": "Crypto", "eth": "Crypto", "solana": "Crypto", "sol": "Crypto",
     "token": "Crypto", "defi": "Crypto", "airdrop": "Crypto", "nft": "Crypto",
-    # Sports
-    "sports": "Sports", "nba": "Sports", "nfl": "Sports", "mlb": "Sports",
-    "nhl": "Sports", "mls": "Sports", "ufc": "Sports", "mma": "Sports",
-    "f1": "Sports", "tennis": "Sports", "golf": "Sports", "cricket": "Sports",
-    "boxing": "Sports", "nbl": "Sports", "wnba": "Sports",
-    "la-liga": "Sports", "premier-league": "Sports", "serie-a": "Sports",
-    "bundesliga": "Sports", "champions-league": "Sports",
+    # Sports — granular
+    "tennis": "Tennis", "atp": "Tennis", "wta": "Tennis",
+    "nba": "Basketball", "wnba": "Basketball", "nbl": "Basketball",
+    "nfl": "Football", "ncaafb": "Football",
+    "soccer": "Soccer", "mls": "Soccer", "epl": "Soccer",
+    "la-liga": "Soccer", "premier-league": "Soccer", "serie-a": "Soccer",
+    "bundesliga": "Soccer", "champions-league": "Soccer", "ligue-1": "Soccer",
+    "mlb": "Baseball", "baseball": "Baseball",
+    "nhl": "Hockey", "hockey": "Hockey",
+    "ufc": "MMA", "mma": "MMA", "boxing": "MMA",
+    "f1": "Motorsport", "nascar": "Motorsport",
+    "golf": "Golf", "pga": "Golf",
+    "cricket": "Cricket",
+    "sports": "Sports",
     # Esports
     "esports": "Esports", "e-sports": "Esports", "cs2": "Esports", "csgo": "Esports",
     "counter-strike": "Esports", "dota": "Esports", "dota2": "Esports",
     "league-of-legends": "Esports", "lol": "Esports", "valorant": "Esports",
     "faze": "Esports", "navi": "Esports", "cybershoke": "Esports",
-    # Entertainment
+    # Entertainment & social
     "entertainment": "Culture", "movie": "Culture", "film": "Culture",
     "culture": "Culture", "awards": "Culture", "music": "Culture",
-    "youtube": "Culture", "streaming": "Culture", "mrbeast": "Culture",
-    "mr-beast": "Culture",
+    "mrbeast": "Culture", "mr-beast": "Culture",
+    "youtube": "Social Media", "twitter": "Social Media", "streaming": "Culture",
     # Other
     "climate": "Climate", "nuclear": "Climate",
     "legal": "Legal", "health": "Health",
@@ -402,12 +409,17 @@ def generate_context_llm(market: dict) -> str | None:
     news_block = ""
     if market.get("news_headline"):
         cleaned, _ = clean_headline(market["news_headline"])
+        snippet = market.get("news_snippet", "")
         news_block = (
             f"\nRecent related headline: {cleaned}\n"
             f"Source: {market.get('news_source', 'unknown')}\n"
-            f"\nUse this headline to ground your explanation. "
-            f"Do NOT repeat the headline verbatim. Do NOT include the source name. "
-            f"Explain the real-world event in your own words.\n"
+        )
+        if snippet:
+            news_block += f"Article excerpt: {snippet[:250]}\n"
+        news_block += (
+            "\nGround your explanation in the headline and excerpt above. "
+            "Do NOT invent facts not mentioned. Do NOT repeat the headline verbatim. "
+            "Do NOT include the source name.\n"
         )
     else:
         news_block = "\nNo specific news headline was found for this market.\nGive your best informed guess at the catalyst.\n"
@@ -723,9 +735,8 @@ def validate_tweet(text: str, label: str) -> list[str]:
 
 def generate_all_contexts_llm(movers: list) -> dict[int, str]:
     """
-    v12 SPEED: Generate context lines for ALL movers in ONE LLM call.
-    Returns dict mapping rank → context string. Falls back to {} on failure.
-    Saves 7+ LLM round trips (was: 8 sequential calls → now: 1 batch call).
+    v14: Generate context lines grounded in real news snippets.
+    Returns dict mapping rank → context string.
     """
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
@@ -737,26 +748,34 @@ def generate_all_contexts_llm(movers: list) -> dict[int, str]:
 
     market_blocks = []
     for m in movers:
-        news = ""
+        news_section = ""
         if m.get("news_headline"):
             cleaned, _ = clean_headline(m["news_headline"])
-            news = f" | Recent headline: {cleaned} ({m.get('news_source', '')})"
+            news_section = f"  Headline: {cleaned} ({m.get('news_source', '')})"
+            snippet = m.get("news_snippet", "")
+            if snippet:
+                news_section += f"\n  Article excerpt: {snippet[:250]}"
         else:
-            news = " | No news headline found"
+            news_section = "  No news found for this market."
+
         market_blocks.append(
-            f"{m['rank']}. {m['question'][:80]}\n"
-            f"   {'UP' if m['delta_pp'] > 0 else 'DOWN'} {m['abs_delta_pp']:.0f}pp → "
-            f"{m['price_now']*100:.0f}% | Vol: ${m['volume_24h']:,.0f}{news}"
+            f"{m['rank']}. {m['question'][:100]}\n"
+            f"  {'UP' if m['delta_pp'] > 0 else 'DOWN'} {m['abs_delta_pp']:.0f}pp → "
+            f"{m['price_now']*100:.0f}% | Vol: ${m['volume_24h']:,.0f}\n"
+            f"{news_section}"
         )
 
     prompt = (
         "You are a prediction market analyst writing for Twitter. "
-        "For EACH market below, write ONE punchy context sentence (max 25 words). "
+        "For EACH market below, write ONE punchy context sentence (max 30 words). "
         "Each sentence should explain the likely REASON the market moved.\n\n"
-        "Rules:\n"
+        "CRITICAL RULES:\n"
+        "- If a headline and article excerpt are provided, your context MUST be grounded in that information\n"
+        "- Do NOT invent facts, names, statistics, or events not mentioned in the provided news\n"
+        "- If the news excerpt mentions specific details (a person, ruling, data point), reference them\n"
+        "- If no news is provided, say what kind of catalyst COULD cause this move — use hedging language "
+        "(e.g., 'Speculation around...', 'Traders appear to be pricing in...', 'Market sentiment suggests...')\n"
         "- Do NOT restate probability numbers or direction\n"
-        "- If a news headline is provided, ground your explanation in it\n"
-        "- If no headline, give your best guess at the catalyst\n"
         "- Do NOT start with 'The' or 'This'\n"
         "- Use active voice, be specific\n\n"
         "Markets:\n" + "\n\n".join(market_blocks) + "\n\n"
@@ -774,7 +793,7 @@ def generate_all_contexts_llm(movers: list) -> dict[int, str]:
                 json={"model": os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514"),
                       "max_tokens": int(os.environ.get("LLM_MAX_TOKENS", 8000)),
                       "messages": [{"role": "user", "content": prompt}]},
-                timeout=60,
+                timeout=90,
             )
             resp.raise_for_status()
             raw = resp.json()["content"][0]["text"].strip()
@@ -785,7 +804,7 @@ def generate_all_contexts_llm(movers: list) -> dict[int, str]:
                 json={"model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
                       "max_tokens": int(os.environ.get("LLM_MAX_TOKENS", 8000)),
                       "messages": [{"role": "user", "content": prompt}]},
-                timeout=60,
+                timeout=90,
             )
             resp.raise_for_status()
             raw = resp.json()["choices"][0]["message"]["content"]

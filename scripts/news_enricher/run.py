@@ -188,6 +188,48 @@ def search_google_news_rss(query: str) -> list[dict]:
         print(f"  [WARN] Google News RSS failed: {e}", file=sys.stderr)
         return []
 
+def fetch_article_snippet(url: str, max_chars: int = 300) -> str:
+    """
+    v14: Fetch the first ~300 chars of article body text.
+    Used to ground the composer's LLM context in real reporting.
+    Returns empty string on failure — non-blocking.
+    """
+    if not url or "google.com/rss" in url:
+        return ""
+    try:
+        resp = requests.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; PolymarketBrief/1.0)"},
+            timeout=6,
+            allow_redirects=True,
+        )
+        resp.raise_for_status()
+        html = resp.text[:20000]  # don't parse huge pages
+
+        # Strip HTML tags
+        text = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        # Extract meaningful chunk — skip short fragments
+        # Find first sentence-like chunk > 80 chars (skips nav/header text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        buffer = ""
+        for s in sentences:
+            if len(s) < 20:
+                continue
+            buffer += s + " "
+            if len(buffer) >= max_chars:
+                break
+
+        snippet = buffer.strip()[:max_chars]
+        if len(snippet) < 50:
+            return ""  # too short to be useful
+        return snippet
+    except Exception:
+        return ""
+
 def find_best_headline(results: list[dict], query: str) -> dict | None:
     """
     Pick the most relevant headline from search results.
@@ -287,26 +329,33 @@ def main():
                    and "kalshi.com" not in r.get("source", "").lower()
                    and "predictit.org" not in r.get("source", "").lower()]
         best = find_best_headline(results, query)
-        time.sleep(0.3)  # reduced from 1.0s
-        return m["rank"], query, best, search_source
+        # v14: fetch article snippet for LLM grounding
+        snippet = ""
+        if best and best.get("url"):
+            snippet = fetch_article_snippet(best["url"])
+        time.sleep(0.3)
+        return m["rank"], query, best, search_source, snippet
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(_enrich_one_market, m): m for m in movers}
         for future in as_completed(futures):
             m = futures[future]
-            rank, query, best, search_source = future.result()
+            rank, query, best, search_source, snippet = future.result()
             print(f"  {rank}. Query: '{query}'")
             if best:
                 m["news_headline"] = best["title"]
                 m["news_source"] = best.get("source", "")
                 m["news_url"] = best.get("url", "")
                 m["news_search_source"] = search_source
-                print(f"  -> {best['title'][:80]}... ({best.get('source', '?')})")
+                m["news_snippet"] = snippet
+                snip_note = f" [+{len(snippet)}ch snippet]" if snippet else ""
+                print(f"  -> {best['title'][:80]}... ({best.get('source', '?')}){snip_note}")
             else:
                 m["news_headline"] = None
                 m["news_source"] = None
                 m["news_url"] = None
                 m["news_search_source"] = None
+                m["news_snippet"] = ""
                 print(f"  -> No relevant news found")
 
     output = {

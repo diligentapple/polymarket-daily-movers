@@ -56,12 +56,23 @@ if _EMOJI_CONFIG.exists():
     except Exception as e:
         print(f"[EMOJI] WARN: Config load failed: {e}", file=sys.stderr)
 
-# v13.2: allowed theme labels — LLM must pick from this list
+# v14: allowed theme labels — LLM must pick from this list
 ALLOWED_THEMES = [
-    "Geopolitics", "Politics", "Elections", "Trade",
-    "Markets", "Energy", "AI", "Tech", "Science", "Space",
-    "Crypto", "Sports", "Esports", "Culture", "Climate",
-    "Legal", "Health",
+    # Geopolitics & governance
+    "Geopolitics", "Politics", "Elections", "Trade", "Legal",
+    # Economy & finance
+    "Markets", "Energy", "Crypto",
+    # Technology
+    "AI", "Tech", "Science", "Space",
+    # Sports (granular)
+    "Tennis", "Basketball", "Football", "Soccer", "Baseball",
+    "Hockey", "MMA", "Golf", "Cricket", "Motorsport", "Sports",
+    # Esports
+    "Esports",
+    # Entertainment & social
+    "Culture", "Social Media",
+    # Environment & health
+    "Climate", "Health",
 ]
 
 def pick_batch_llm(movers: list) -> tuple[dict, dict]:
@@ -86,15 +97,28 @@ def pick_batch_llm(movers: list) -> tuple[dict, dict]:
         "- Never use 📌\n\n"
         "Theme rules:\n"
         "- Pick the MOST SPECIFIC theme that fits\n"
-        "- Tennis/NBA/NFL/UFC/F1 → Sports\n"
+        "- Tennis (ATP/WTA/Grand Slams) → Tennis\n"
+        "- NBA/WNBA/college basketball → Basketball\n"
+        "- NFL/college football → Football\n"
+        "- Soccer/MLS/Premier League/La Liga/Champions League → Soccer\n"
+        "- MLB/baseball → Baseball\n"
+        "- NHL/hockey → Hockey\n"
+        "- UFC/MMA/boxing → MMA\n"
+        "- F1/NASCAR/racing → Motorsport\n"
+        "- Golf/PGA → Golf\n"
+        "- Other/mixed sports → Sports\n"
         "- CS2/Valorant/LoL/Dota → Esports\n"
-        "- Bitcoin/Ethereum/tokens → Crypto\n"
-        "- ChatGPT/Claude/LLMs/OpenAI → AI\n"
-        "- S&P/stocks/Fed/interest rates → Markets\n"
+        "- Bitcoin/Ethereum/tokens/DeFi → Crypto\n"
+        "- ChatGPT/Claude/LLMs/OpenAI/Anthropic → AI\n"
+        "- S&P/stocks/Fed/interest rates/IPO → Markets\n"
         "- Oil/gas/OPEC → Energy\n"
-        "- Wars/military/invasions → Geopolitics\n"
-        "- YouTube/movies/MrBeast/awards → Culture\n"
-        "- Trump/Biden/elections → Politics\n\n"
+        "- Wars/military/invasions/ceasefire → Geopolitics\n"
+        "- Trump/Biden/Congress/legislation → Politics\n"
+        "- Tariffs/trade deals/sanctions → Trade\n"
+        "- Twitter/X activity/YouTube/posting/social → Social Media\n"
+        "- Movies/awards/music/MrBeast → Culture\n"
+        "- Courts/lawsuits/rulings → Legal\n"
+        "- SpaceX/NASA/rockets → Space\n\n"
         "Markets:\n" + market_list + "\n\n"
         'Respond with ONLY valid JSON: {"1":{"emoji":"🎾","theme":"Sports"},"2":{"emoji":"⚔️","theme":"Geopolitics"},...}\n'
         "No markdown, no explanation."
@@ -159,28 +183,48 @@ def fallback_emoji(question: str, tag_slugs: list) -> str:
             return emo
     return DEFAULT
 
-# v13.2: theme fallback when LLM unavailable
+# v14: theme fallback when LLM unavailable
 _THEME_FALLBACK = {
+    # Crypto
     "bitcoin": "Crypto", "btc": "Crypto", "ethereum": "Crypto", "eth": "Crypto",
     "crypto": "Crypto", "token": "Crypto", "defi": "Crypto", "solana": "Crypto",
-    "nba": "Sports", "nfl": "Sports", "mlb": "Sports", "nhl": "Sports",
-    "mls": "Sports", "ufc": "Sports", "mma": "Sports", "tennis": "Sports",
-    "f1": "Sports", "golf": "Sports", "cricket": "Sports", "boxing": "Sports",
-    "esports": "Esports", "cs2": "Esports", "valorant": "Esports",
+    # Sports — granular
+    "tennis": "Tennis", "atp": "Tennis", "wta": "Tennis", "wimbledon": "Tennis",
+    "nba": "Basketball", "wnba": "Basketball", "ncaab": "Basketball",
+    "nfl": "Football", "ncaafb": "Football",
+    "soccer": "Soccer", "mls": "Soccer", "epl": "Soccer", "la-liga": "Soccer",
+    "premier-league": "Soccer", "champions-league": "Soccer", "serie-a": "Soccer",
+    "bundesliga": "Soccer", "ligue-1": "Soccer",
+    "mlb": "Baseball", "baseball": "Baseball",
+    "nhl": "Hockey", "hockey": "Hockey",
+    "ufc": "MMA", "mma": "MMA", "boxing": "MMA",
+    "f1": "Motorsport",
+    "golf": "Golf", "pga": "Golf",
+    "cricket": "Cricket",
+    "sports": "Sports",  # generic fallback
+    # Esports
+    "esports": "Esports", "e-sports": "Esports", "cs2": "Esports",
+    "counter-strike": "Esports", "valorant": "Esports",
     "dota": "Esports", "lol": "Esports", "league-of-legends": "Esports",
-    "counter-strike": "Esports",
+    # Tech
     "ai": "AI", "tech": "Tech", "science": "Science", "space": "Space",
-    "politics": "Politics", "us-politics": "Politics", "election": "Elections",
-    "elections": "Elections",
+    # Governance
+    "politics": "Politics", "us-politics": "Politics",
+    "election": "Elections", "elections": "Elections",
     "geopolitics": "Geopolitics", "ukraine": "Geopolitics", "russia": "Geopolitics",
     "israel": "Geopolitics", "iran": "Geopolitics", "china": "Geopolitics",
     "war": "Geopolitics", "military": "Geopolitics", "conflict": "Geopolitics",
     "trade": "Trade", "tariffs": "Trade",
+    "legal": "Legal",
+    # Economy
     "economy": "Markets", "fed": "Markets", "spx": "Markets", "stocks": "Markets",
     "oil": "Energy", "opec": "Energy", "wti": "Energy", "energy": "Energy",
-    "climate": "Climate", "legal": "Legal", "health": "Health",
-    "entertainment": "Culture", "movie": "Culture", "mrbeast": "Culture",
-    "youtube": "Culture", "awards": "Culture", "music": "Culture",
+    # Social & culture
+    "mrbeast": "Culture", "youtube": "Social Media", "twitter": "Social Media",
+    "entertainment": "Culture", "movie": "Culture", "awards": "Culture",
+    "music": "Culture",
+    # Other
+    "climate": "Climate", "health": "Health",
 }
 
 def fallback_theme(market: dict) -> str:
