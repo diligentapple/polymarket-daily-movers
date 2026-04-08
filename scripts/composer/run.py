@@ -268,6 +268,12 @@ THEME_LABELS = {
     # Other
     "climate": "Climate", "nuclear": "Climate",
     "legal": "Legal", "health": "Health",
+    # v14.2: conflict/military + social media keywords
+    "ceasefire": "Geopolitics", "invasion": "Geopolitics",
+    "airstrike": "Geopolitics", "hezbollah": "Geopolitics",
+    "hamas": "Geopolitics", "military action": "Geopolitics",
+    "troops": "Geopolitics", "missile": "Geopolitics",
+    "tweet": "Social Media", "tweets": "Social Media", "posts": "Social Media",
 }
 
 def get_theme_label(market: dict) -> str:
@@ -302,8 +308,8 @@ def clean_headline(raw: str) -> tuple[str, str]:
     h = re.sub(r"\s*[-–—|]\s*[A-Z][A-Za-z\s.]{2,30}$", "", h)
     h = re.sub(r"^(breaking|exclusive|update|watch|live|opinion|analysis):\s*",
                "", h, flags=re.IGNORECASE)
-    if len(h) > 70:
-        h = h[:67].rsplit(" ", 1)[0] + "..."
+    if len(h) > 55:
+        h = h[:52].rsplit(" ", 1)[0] + "..."
     if h:
         h = h[0].upper() + h[1:]
     return h, (h[0].lower() + h[1:]) if h else ""
@@ -339,6 +345,19 @@ def get_emoji(tag_slugs: list[str], question: str = "") -> str:
     for kw, emo in sports_q_keywords.items():
         if kw in q_words or kw in q_lower:
             return emo
+
+    # v14.2: last-resort category guessing before 📌
+    if any(w in q_lower for w in ["vs", "vs.", "versus", "match", "game"]):
+        return "⚽"
+    if any(w in q_lower for w in ["price", "above", "below", "hit", "$"]):
+        return "📈"
+    if any(w in q_lower for w in ["election", "vote", "president", "governor", "senator"]):
+        return "🗳️"
+    if any(w in q_lower for w in ["war", "military", "ceasefire", "attack", "strike", "troops"]):
+        return "⚔️"
+    if any(w in q_lower for w in ["tweet", "post", "posts", "followers"]):
+        return "🐦"
+
     return DEFAULT_EMOJI
 
 # ── Question shortening ────────────────────────────────────────────────────────
@@ -349,6 +368,9 @@ def shorten_question(question: str) -> str:
         q = q[:-1].strip()
     if q.lower().startswith("will "):
         q = q[5:].strip()
+    # v14.2: strip Polymarket internal labels
+    q = re.sub(r"\s*\((?:HIGH|LOW|CLOSE|OPEN|YES|NO)\)\s*", " ", q, flags=re.IGNORECASE)
+    q = re.sub(r"\s*\[(?:HIGH|LOW|CLOSE|OPEN)\]\s*", " ", q, flags=re.IGNORECASE)
     # v7 fix: "Will the price of Bitcoin be above X?" -> "Bitcoin above X?"
     q = re.sub(r"^the price of \w+ (be|has|have|will)\s+", "", q, flags=re.IGNORECASE)
     q = re.sub(r"\s+(on|by|before|after)\s+\d{4}-\d{2}-\d{2}$", "", q, flags=re.IGNORECASE)
@@ -381,6 +403,9 @@ def shorten_question(question: str) -> str:
     return q
 
 def shorten_for_lead(question: str, max_chars: int = 45) -> str:
+    # v14.2: strip Polymarket internal labels before shortening
+    question = re.sub(r"\s*\((?:HIGH|LOW|CLOSE|OPEN|YES|NO)\)\s*", " ", question, flags=re.IGNORECASE)
+    question = re.sub(r"\s*\[(?:HIGH|LOW|CLOSE|OPEN)\]\s*", " ", question, flags=re.IGNORECASE)
     q = shorten_question(question)
     if len(q) > max_chars:
         q = q[:max_chars - 4].rsplit(" ", 1)[0] + "..."
@@ -399,30 +424,28 @@ def format_volume(vol: float) -> str:
 TWEET_HEADLINE_MAX = 45
 
 CONTEXT_WITH_NEWS_UP = [
-    "{headline_cleaned} ({source}). Up {delta}pp.",
-    "Up {delta}pp. {headline_cleaned} — {source}",
-    "{headline_cleaned} ({source}). Odds climbed on the back of this.",
-    "Market up {delta}pp — {headline_cleaned} ({source})",
+    "{headline_cleaned} ({source})",
+    "{headline_cleaned} — {source}. Odds climbed on the back of this",
+    "Market repriced after: {headline_cleaned} ({source})",
 ]
 CONTEXT_WITH_NEWS_DOWN = [
-    "{headline_cleaned} ({source}). Down {delta}pp.",
-    "Down {delta}pp. {headline_cleaned} — {source}",
-    "{headline_cleaned} ({source}). Odds fell sharply.",
-    "Market down {delta}pp — {headline_cleaned} ({source})",
+    "{headline_cleaned} ({source})",
+    "{headline_cleaned} — {source}. Odds fell sharply",
+    "Market repriced after: {headline_cleaned} ({source})",
 ]
 CONTEXT_NO_NEWS_UP = [
-    "Market pricing in a notably higher probability than 24h ago. {vol} traded.",
-    "Significant upward repricing — {vol} in volume. Something shifted overnight.",
-    "Odds moved sharply toward Yes. {vol} of conviction behind the move.",
-    "A {delta}pp swing on {vol} volume suggests new information entered the market.",
-    "Steady buying pressure pushed this up {delta}pp. {vol} changed hands.",
+    "Market pricing in a notably higher probability than 24h ago",
+    "Significant upward repricing — something shifted overnight",
+    "Odds moved sharply toward Yes, signaling new information",
+    "A sharp swing suggests new information entered the market",
+    "Steady buying pressure pushed this up — conviction is building",
 ]
 CONTEXT_NO_NEWS_DOWN = [
-    "Market repricing notably lower — {vol} traded. Sentiment shifting.",
-    "Sharp move toward No. {vol} in volume suggests a meaningful signal.",
-    "Odds dropped {delta}pp on {vol} — the market is growing skeptical.",
-    "Downward pressure on {vol} volume. Something changed overnight.",
-    "Sellers drove this down {delta}pp. {vol} of conviction behind the move.",
+    "Market repricing notably lower — sentiment is shifting",
+    "Sharp move toward No suggests a meaningful signal",
+    "Odds dropped sharply — the market is growing skeptical",
+    "Downward pressure building. Something changed overnight",
+    "Sellers stepped in hard — conviction behind the move is real",
 ]
 
 def generate_context_template(market: dict, used_patterns: set) -> str:

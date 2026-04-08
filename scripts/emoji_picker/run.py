@@ -42,6 +42,21 @@ FALLBACK = {
     "climate": "🌡️", "oil": "🛢️", "energy": "⚡",
     "war": "⚔️", "military": "⚔️",
     "f1": "🏎️", "tennis": "🎾", "golf": "⛳",
+    # v14.2: common misses
+    "tigers": "⚾", "twins": "⚾", "yankees": "⚾", "athletics": "⚾",
+    "dodgers": "⚾", "red-sox": "⚾", "mets": "⚾", "cubs": "⚾",
+    "astros": "⚾", "braves": "⚾", "phillies": "⚾", "padres": "⚾",
+    "orioles": "⚾", "guardians": "⚾", "rangers": "⚾", "royals": "⚾",
+    "marlins": "⚾", "brewers": "⚾", "pirates": "⚾", "rays": "⚾",
+    "reds": "⚾", "rockies": "⚾", "mariners": "⚾", "angels": "⚾",
+    "nationals": "⚾", "diamondbacks": "⚾", "white-sox": "⚾",
+    "lakers": "🏀", "celtics": "🏀", "warriors": "🏀", "nuggets": "🏀",
+    "bucks": "🏀", "knicks": "🏀", "heat": "🏀", "76ers": "🏀",
+    "suns": "🏀", "cavaliers": "🏀", "mavs": "🏀", "mavericks": "🏀",
+    "chiefs": "🏈", "eagles": "🏈", "49ers": "🏈", "cowboys": "🏈",
+    "bills": "🏈", "ravens": "🏈", "lions": "🏈", "packers": "🏈",
+    "ceasefire": "⚔️", "invasion": "⚔️", "airstrike": "⚔️",
+    "hezbollah": "🇱🇧", "hamas": "🇵🇸",
 }
 DEFAULT = "📌"
 
@@ -181,6 +196,20 @@ def fallback_emoji(question: str, tag_slugs: list) -> str:
     for kw, emo in FALLBACK.items():
         if kw in combined:
             return emo
+
+    # v14.2: last-resort category guessing before 📌
+    q = question.lower()
+    if any(w in q for w in ["vs", "vs.", "versus", "match", "game"]):
+        return "⚽"  # generic sports
+    if any(w in q for w in ["price", "above", "below", "hit", "$"]):
+        return "📈"  # generic markets/finance
+    if any(w in q for w in ["election", "vote", "president", "governor", "senator"]):
+        return "🗳️"
+    if any(w in q for w in ["war", "military", "ceasefire", "attack", "strike", "troops"]):
+        return "⚔️"
+    if any(w in q for w in ["tweet", "post", "posts", "followers"]):
+        return "🐦"
+
     return DEFAULT
 
 # v14: theme fallback when LLM unavailable
@@ -225,6 +254,17 @@ _THEME_FALLBACK = {
     "music": "Culture",
     # Other
     "climate": "Climate", "health": "Health",
+    # v14.2: team names → sport themes
+    "tigers": "Baseball", "twins": "Baseball", "yankees": "Baseball",
+    "athletics": "Baseball", "dodgers": "Baseball", "red-sox": "Baseball",
+    "mets": "Baseball", "cubs": "Baseball", "astros": "Baseball",
+    "lakers": "Basketball", "celtics": "Basketball", "warriors": "Basketball",
+    "chiefs": "Football", "eagles": "Football", "49ers": "Football",
+    "cowboys": "Football",
+    # Geopolitics keywords
+    "ceasefire": "Geopolitics", "invasion": "Geopolitics",
+    "airstrike": "Geopolitics", "hezbollah": "Geopolitics",
+    "hamas": "Geopolitics", "military action": "Geopolitics",
 }
 
 def fallback_theme(market: dict) -> str:
