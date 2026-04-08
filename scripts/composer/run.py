@@ -46,6 +46,65 @@ def count_tweet_chars(text: str) -> int:
         char_count += X_URL_LENGTH
     return char_count
 
+
+def _trim_to_limit(text: str, limit: int = 280) -> str:
+    """
+    Progressively shorten a reply tweet to fit within the char limit.
+    Tries strategies in order from least to most aggressive.
+    """
+    if count_tweet_chars(text) <= limit:
+        return text
+
+    lines = text.split("\n")
+
+    # Strategy 1: trim the context line (usually the longest part)
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Skip theme header, question, pct line, URL
+        if any(stripped.startswith(p) for p in ["➜", "→", "http"]):
+            continue
+        if "📈" in stripped or "📉" in stripped:
+            continue
+        if to_bold("") != "" and any(ord(c) > 0x1D400 for c in stripped[:5]):
+            continue
+        # This is likely the context line — shorten it
+        if len(stripped) > 60:
+            words = stripped.split()
+            while words and count_tweet_chars("\n".join(lines)) > limit:
+                words.pop()
+            if words:
+                lines[i] = " ".join(words)
+            break
+
+    text = "\n".join(lines)
+    if count_tweet_chars(text) <= limit:
+        return text
+
+    # Strategy 2: shorten the question line
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.endswith("?") and len(stripped) > 40:
+            lines[i] = stripped[:37].rsplit(" ", 1)[0] + "...?"
+            break
+
+    text = "\n".join(lines)
+    if count_tweet_chars(text) <= limit:
+        return text
+
+    # Strategy 3: remove blank lines (compacts spacing)
+    lines = [l for l in lines if l.strip() or lines.index(l) == len(lines) - 2]
+    text = "\n".join(lines)
+    if count_tweet_chars(text) <= limit:
+        return text
+
+    # Strategy 4: nuclear — hard truncate (shouldn't reach here)
+    while count_tweet_chars(text) > limit and len(text) > 10:
+        text = text[:len(text) - 5].rsplit(" ", 1)[0] + "..."
+    return text
+
+
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/home/diligentapple/.openclaw/workspace/polymarket"))
 DATE = os.environ.get("RUN_DATE")
 ENRICHED_FILE = DATA_DIR / "briefs" / DATE / "enriched.json"
@@ -714,7 +773,8 @@ def compose_reply(market: dict) -> str:
         "",
         f"\u279c  {url}",
     ]
-    return "\n".join(lines)
+    tweet = "\n".join(lines)
+    return _trim_to_limit(tweet, 280)
 
 # ── Validation ──────────────────────────────────────────────────────────────────
 def validate_tweet(text: str, label: str) -> list[str]:
@@ -921,19 +981,13 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
-    # Length safety net
+    # Length safety net — should rarely trigger now that compose_reply trims
     for i, reply in enumerate(replies):
-        if count_tweet_chars(reply) > 280:
-            lines = reply.split("\n")
-            # Try dropping the extra vol line
-            if len(lines) > 5:
-                lines = [l for l in lines if "vol" not in l.lower() or "vol" in lines[lines.index(l)-1].lower()]
-            shortened = "\n".join(lines)
-            if count_tweet_chars(shortened) <= 280:
-                replies[i] = shortened
-            else:
-                replies[i] = reply[:277] + "..."
-            print(f" [FIX] Reply {i+1} truncated -> {count_tweet_chars(replies[i])} chars")
+        eff = count_tweet_chars(reply)
+        if eff > 280:
+            print(f" [FIX] Reply {i+1} is {eff} chars, trimming...")
+            replies[i] = _trim_to_limit(reply, 280)
+            print(f" [FIX] Reply {i+1} trimmed → {count_tweet_chars(replies[i])} chars")
 
     output = {
         "date": DATE,
