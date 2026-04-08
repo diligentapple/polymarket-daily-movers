@@ -361,6 +361,17 @@ def get_emoji(tag_slugs: list[str], question: str = "") -> str:
     return DEFAULT_EMOJI
 
 # ── Question shortening ────────────────────────────────────────────────────────
+def _strip_redundant_parens(text: str) -> str:
+    def _check(match):
+        inner = match.group(1).strip()
+        before = text[:match.start()].lower()
+        if inner.lower() in before:
+            return " "
+        return match.group(0)
+
+    return re.sub(r"\s*\(([A-Z]{2,6})\)", _check, text)
+
+
 def shorten_question(question: str) -> str:
     q = question.strip()
     had_qmark = q.endswith("?")
@@ -371,8 +382,9 @@ def shorten_question(question: str) -> str:
     # v14.2: strip Polymarket internal labels
     q = re.sub(r"\s*\((?:HIGH|LOW|CLOSE|OPEN|YES|NO)\)\s*", " ", q, flags=re.IGNORECASE)
     q = re.sub(r"\s*\[(?:HIGH|LOW|CLOSE|OPEN)\]\s*", " ", q, flags=re.IGNORECASE)
-    # v7 fix: "Will the price of Bitcoin be above X?" -> "Bitcoin above X?"
-    q = re.sub(r"^the price of \w+ (be|has|have|will)\s+", "", q, flags=re.IGNORECASE)
+    q = _strip_redundant_parens(q)
+    # v15: keep the asset name instead of collapsing to just the predicate
+    q = re.sub(r"^the price of (\w+) (?:be|has|have|will)\s+", r"\1 ", q, flags=re.IGNORECASE)
     q = re.sub(r"\s+(on|by|before|after)\s+\d{4}-\d{2}-\d{2}$", "", q, flags=re.IGNORECASE)
     q = re.sub(
         r"\s+(on|by|before|after)\s+"
@@ -406,6 +418,7 @@ def shorten_for_lead(question: str, max_chars: int = 45) -> str:
     # v14.2: strip Polymarket internal labels before shortening
     question = re.sub(r"\s*\((?:HIGH|LOW|CLOSE|OPEN|YES|NO)\)\s*", " ", question, flags=re.IGNORECASE)
     question = re.sub(r"\s*\[(?:HIGH|LOW|CLOSE|OPEN)\]\s*", " ", question, flags=re.IGNORECASE)
+    question = _strip_redundant_parens(question)
     q = shorten_question(question)
     if len(q) > max_chars:
         q = q[:max_chars - 4].rsplit(" ", 1)[0] + "..."

@@ -120,9 +120,26 @@ def build_search_query(market: dict) -> str:
                     q = " ".join(words[:i+1])
                     break
             else:
-                q = " ".join(words[:8])
+                    q = " ".join(words[:8])
         else:
             q = " ".join(words[:8])
+    q_lower = q.lower()
+    if len(q.split()) > 5 and any(kw in q_lower for kw in
+            ["military action", "continues through", "ceasefire",
+             "strike on", "invade", "troops", "conflict ends"]):
+        entities = []
+        for ent in KNOWN_ENTITIES:
+            if ent in market.get("question", "").lower():
+                entities.append(ent.title())
+        if entities:
+            action_words = []
+            for aw in ["ceasefire", "military", "strike", "war", "conflict",
+                       "invasion", "peace", "attack"]:
+                if aw in q_lower:
+                    action_words.append(aw)
+                    break
+            if action_words:
+                q = " ".join(entities[:2]) + " " + action_words[0]
     return q
 
 # ============================================================
@@ -261,7 +278,9 @@ def find_best_headline(results: list[dict], query: str) -> dict | None:
         "manifold", "manifold.markets",
     }
     junk_phrases = ["how to", "top 10", "best ", "buy now", "sign up",
-                    "subscribe", "what is", "definition of"]
+                    "subscribe", "what is", "definition of",
+                    "polymarket", "kalshi", "predictit", "metaculus",
+                    "prediction market"]
 
     scored = []
     for r in results:

@@ -49,6 +49,7 @@ SKIP_TAGS=temperature,weather,highest-temperature,lowest-temperature
 # Diversity caps
 MAX_PER_CATEGORY=2
 MAX_SPORTS=2
+MAX_GEOPOLITICS=3
 MAX_CRYPTO=1
 
 # Timeouts (seconds)
@@ -111,7 +112,7 @@ BRIEFS_DIR=/path/to/polymarket-daily-movers/briefs
 | Script | Env vars used |
 |--------|-------------|
 | `scanner/run.py` | `RUN_DATE`, `DATA_DIR`, `MIN_VOLUME_24H`, `PRICE_FLOOR`, `PRICE_CEILING`, `SKIP_TAGS` |
-| `ranker/run.py` | `RUN_DATE`, `DATA_DIR`, `TOP_N_MOVERS`, `MAX_SPORTS`, `MAX_CRYPTO`, `MAX_PER_CATEGORY` |
+| `ranker/run.py` | `RUN_DATE`, `DATA_DIR`, `TOP_N_MOVERS`, `MAX_SPORTS`, `MAX_GEOPOLITICS`, `MAX_CRYPTO`, `MAX_PER_CATEGORY` |
 | `news_enricher/run.py` | `RUN_DATE`, `DATA_DIR`, `NEWS_SEARCH_TIMEOUT`, `NEWS_ENRICH_TIMEOUT` |
 | `emoji_picker/run.py` | `RUN_DATE`, `DATA_DIR`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` |
 | `interest_ranker/run.py` | `RUN_DATE`, `DATA_DIR`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` |

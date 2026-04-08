@@ -54,6 +54,12 @@ def preflight_check(tweets: dict) -> list[str]:
             blockers.append(f"{label}: unresolved {{ }} placeholder")
         if "__FILL_IN__" in text:
             blockers.append(f"{label}: __FILL_IN__ present")
+        import re as _re_ref
+        for ref_match in _re_ref.finditer(r"[?&]ref=([^\s&]+)", text):
+            ref_val = ref_match.group(1).lower()
+            if ref_val in {"placeholder", "referral_placeholder", "your_id",
+                           "test", "example", "xxx", "todo"}:
+                blockers.append(f"{label}: fake referral ID '{ref_match.group(1)}'")
         if "SUBSTACK_URL" in text:
             blockers.append(f"{label}: SUBSTACK_URL present")
         if count_tweet_chars(text) > 280:

@@ -59,6 +59,9 @@ FALLBACK = {
     "hezbollah": "🇱🇧", "hamas": "🇵🇸",
 }
 DEFAULT = "📌"
+BLOCKED_EMOJIS = {"📌", "🟡", "🟢", "🔴", "🟠", "🔵", "⚪", "⚫",
+                  "❓", "❗", "❕", "❔", "⭐", "✨", "💠", "🔶", "🔷",
+                  "▶️", "⏹️", "🔘", "🔲", "🔳", "⬛", "⬜"}
 
 # v12: Load from config if available
 _EMOJI_CONFIG = DATA_DIR / "config" / "emoji_map.json"
@@ -302,7 +305,7 @@ def main():
     for m in movers:
         r = m.get("rank", 0)
         # Emoji
-        if r in llm_emoji_map and llm_emoji_map[r] != DEFAULT:
+        if r in llm_emoji_map and llm_emoji_map[r] not in BLOCKED_EMOJIS:
             m["emoji"] = llm_emoji_map[r]
             print(f"  {r}. {llm_emoji_map[r]} (llm)", end="")
         else:

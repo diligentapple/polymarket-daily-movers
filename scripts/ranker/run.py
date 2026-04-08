@@ -24,6 +24,7 @@ TMP_FILE = DATA_DIR / "briefs" / DATE / "ranked.tmp.json"
 TOP_N = int(os.environ.get("TOP_N_MOVERS", 8))
 MAX_PER_CATEGORY = int(os.environ.get("MAX_PER_CATEGORY", 2))
 MAX_SPORTS = int(os.environ.get("MAX_SPORTS", 2))
+MAX_GEOPOLITICS = int(os.environ.get("MAX_GEOPOLITICS", 3))
 
 # ── Repetitive intra-day market dedup ──────────────────────────────────────────
 REPETITIVE_PATTERNS = [
@@ -112,6 +113,35 @@ def is_crypto_market(market: dict) -> bool:
     for kw in crypto_kw:
         if kw in question:
             return True
+    return False
+
+_GEOPOLITICS_KEYWORDS = {
+    "geopolitics", "war", "military", "conflict", "ceasefire", "invasion",
+    "airstrike", "missile", "troops", "sanctions", "strike",
+}
+_GEOPOLITICS_ENTITIES = {
+    "ukraine", "russia", "israel", "iran", "gaza", "yemen", "syria",
+    "lebanon", "hezbollah", "hamas", "taiwan",
+}
+
+def is_geopolitics_market(market: dict) -> bool:
+    """Check if a market is geopolitics/military/conflict."""
+    question = market.get("question", "").lower()
+    tag_slugs = [s.lower() for s in market.get("tag_slugs", [])]
+    geo_tags = {"geopolitics", "war", "conflict", "military", "middle-east"}
+    if geo_tags.intersection(tag_slugs):
+        return True
+    for kw in _GEOPOLITICS_KEYWORDS:
+        if kw in question:
+            return True
+    for ent in _GEOPOLITICS_ENTITIES:
+        if ent in question:
+            if any(c in question for c in ["military", "war", "strike", "invade",
+                                           "ceasefire", "conflict", "action", "attack",
+                                           "bomb", "missile", "troops"]):
+                return True
+            if any(t in tag_slugs for t in ["geopolitics", "war", "conflict", "military"]):
+                return True
     return False
 
 def extract_primary_entity(question: str) -> str | None:
@@ -257,6 +287,7 @@ def select_diverse_top_n(scored: list, top_n: int) -> list:
     event_slugs_seen = set()  # v9: no two markets from same event
     sports_count = 0
     crypto_count = 0
+    geopolitics_count = 0
     for m in scored:
         if len(selected) >= top_n:
             break
@@ -265,6 +296,7 @@ def select_diverse_top_n(scored: list, top_n: int) -> list:
         cat = primary_category(m)
         is_sport = m.get("is_sports", False)
         is_crypto = is_crypto_market(m)
+        is_geo = is_geopolitics_market(m)
         event_slug = m.get("event_slug", "")
 
         # v9: Layer 0 - event slug dedup (no two markets from same event)
@@ -281,8 +313,11 @@ def select_diverse_top_n(scored: list, top_n: int) -> list:
             continue
         if is_crypto and crypto_count >= MAX_CRYPTO:
             continue
+        if is_geo and geopolitics_count >= MAX_GEOPOLITICS:
+            continue
         selected.append(m)
         m["is_crypto"] = is_crypto
+        m["is_geopolitics"] = is_geo
         if event_slug:
             event_slugs_seen.add(event_slug)
         if entity:
@@ -292,6 +327,8 @@ def select_diverse_top_n(scored: list, top_n: int) -> list:
             sports_count += 1
         if is_crypto:
             crypto_count += 1
+        if is_geo:
+            geopolitics_count += 1
     return selected
 
 def main():
@@ -338,6 +375,7 @@ def main():
         "top_n": TOP_N,
         "total_scored": len(scored),
         "sports_cap": MAX_SPORTS,
+        "geopolitics_cap": MAX_GEOPOLITICS,
         "category_cap": MAX_PER_CATEGORY,
         "movers": top,
     }
