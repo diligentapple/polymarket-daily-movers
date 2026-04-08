@@ -216,8 +216,14 @@ def run_pipeline(date):
         if stage_idx < current_idx:
             log(f"Skipping {stage_name} — already done")
             continue
+        # v15.1: only skip via file existence if no earlier stage shares this output file.
+        # NEWS_ENRICHING, EMOJI_PICKING, and INTEREST_RANKING all write enriched.json.
         out_exists = (BRIEFS_DIR / date / expected_file).exists()
-        if out_exists:
+        earlier_stages_share_file = any(
+            STAGES[j][2] == expected_file
+            for j in range(stage_idx)
+        )
+        if out_exists and not earlier_stages_share_file:
             log(f"{stage_name}: output exists, advancing")
             ck["state"] = STAGES[stage_idx+1][0] if stage_idx+1 < len(STAGES) else "DONE"
             save_ck(ck)
