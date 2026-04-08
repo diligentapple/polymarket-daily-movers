@@ -25,6 +25,7 @@ OUTPUT_FILE = DATA_DIR / "briefs" / DATE / "enriched.json"
 TMP_FILE = DATA_DIR / "briefs" / DATE / "enriched.tmp.json"
 
 PER_MARKET_TIMEOUT = int(os.environ.get("NEWS_SEARCH_TIMEOUT", 10))
+NEWS_EVIDENCE_LIMIT = int(os.environ.get("NEWS_EVIDENCE_LIMIT", 2))
 
 # ============================================================
 # KNOWN ENTITIES AND GEO WORDS
@@ -247,17 +248,10 @@ def fetch_article_snippet(url: str, max_chars: int = 300) -> str:
     except Exception:
         return ""
 
-def find_best_headline(results: list[dict], query: str) -> dict | None:
-    """
-    Pick the most relevant headline from search results.
-    Returns None if the best score is below MIN_RELEVANCE_SCORE (2).
-    """
-    if not results:
-        return None
-
-    MIN_RELEVANCE_SCORE = 2
-
+def score_search_results(results: list[dict], query: str) -> list[tuple[int, dict]]:
+    """Return filtered search results sorted by relevance descending."""
     query_words = set(w.lower() for w in query.split() if len(w) > 2)
+    min_relevance_score = 2
 
     preferred_domains = {
         "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk",
@@ -296,20 +290,45 @@ def find_best_headline(results: list[dict], query: str) -> dict | None:
         overlap = len(query_words & title_words)
         domain_bonus = 2 if any(d in source_lower for d in preferred_domains) else 0
         score = overlap + domain_bonus
-        scored.append((score, r))
-
-    if not scored:
-        return None
+        if score >= min_relevance_score:
+            scored.append((score, r))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    best_score, best_result = scored[0]
+    return scored
 
-    if best_score < MIN_RELEVANCE_SCORE:
-        print(f"  [SKIP] Headline scored {best_score} (floor={MIN_RELEVANCE_SCORE}): "
-              f"'{best_result['title'][:60]}' — rejecting as off-topic")
+def find_best_headline(results: list[dict], query: str) -> dict | None:
+    """
+    Pick the most relevant headline from search results.
+    Returns None if nothing clears the relevance floor.
+    """
+    scored = score_search_results(results, query)
+    if not scored:
         return None
+    return scored[0][1]
 
-    return best_result
+def build_news_evidence(results: list[dict], query: str, limit: int = NEWS_EVIDENCE_LIMIT) -> list[dict]:
+    """
+    Keep the top few grounded news results so later stages can summarize
+    what changed without citing article titles directly in the tweet text.
+    """
+    evidence = []
+    seen_urls = set()
+    for score, result in score_search_results(results, query):
+        url = result.get("url", "")
+        if not url or url in seen_urls:
+            continue
+        snippet = fetch_article_snippet(url)
+        evidence.append({
+            "title": result.get("title", ""),
+            "source": result.get("source", ""),
+            "url": url,
+            "snippet": snippet,
+            "score": score,
+        })
+        seen_urls.add(url)
+        if len(evidence) >= limit:
+            break
+    return evidence
 
 # ============================================================
 # MAIN
@@ -347,19 +366,17 @@ def main():
                    if "polymarket.com" not in r.get("source", "").lower()
                    and "kalshi.com" not in r.get("source", "").lower()
                    and "predictit.org" not in r.get("source", "").lower()]
-        best = find_best_headline(results, query)
-        # v14: fetch article snippet for LLM grounding
-        snippet = ""
-        if best and best.get("url"):
-            snippet = fetch_article_snippet(best["url"])
+        evidence = build_news_evidence(results, query)
+        best = evidence[0] if evidence else None
+        snippet = best.get("snippet", "") if best else ""
         time.sleep(0.3)
-        return m["rank"], query, best, search_source, snippet
+        return m["rank"], query, best, search_source, snippet, evidence
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(_enrich_one_market, m): m for m in movers}
         for future in as_completed(futures):
             m = futures[future]
-            rank, query, best, search_source, snippet = future.result()
+            rank, query, best, search_source, snippet, evidence = future.result()
             print(f"  {rank}. Query: '{query}'")
             if best:
                 m["news_headline"] = best["title"]
@@ -367,14 +384,17 @@ def main():
                 m["news_url"] = best.get("url", "")
                 m["news_search_source"] = search_source
                 m["news_snippet"] = snippet
+                m["news_evidence"] = evidence
                 snip_note = f" [+{len(snippet)}ch snippet]" if snippet else ""
-                print(f"  -> {best['title'][:80]}... ({best.get('source', '?')}){snip_note}")
+                print(f"  -> {best['title'][:80]}... ({best.get('source', '?')})"
+                      f"{snip_note} [{len(evidence)} evidence]")
             else:
                 m["news_headline"] = None
                 m["news_source"] = None
                 m["news_url"] = None
                 m["news_search_source"] = None
                 m["news_snippet"] = ""
+                m["news_evidence"] = []
                 print(f"  -> No relevant news found")
 
     output = {

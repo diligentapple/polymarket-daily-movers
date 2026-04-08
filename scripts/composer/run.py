@@ -278,15 +278,10 @@ THEME_LABELS = {
 
 def get_theme_label(market: dict) -> str:
     """
-    v13.2: Return the theme label for a market.
-    Priority: LLM-assigned 'theme' field (from emoji_picker) → hardcoded fallback.
+    Return the display theme for a market.
+    Prefer deterministic tag/question matching over stored LLM theme so
+    obvious geopolitics markets cannot surface as Football or AI.
     """
-    # 1. Use LLM-assigned theme if present
-    theme = market.get("theme")
-    if theme:
-        return theme
-
-    # 2. Fallback: tag-based lookup
     tag_slugs = market.get("tag_slugs", [])
     question = market.get("question", "").lower()
     for slug in tag_slugs:
@@ -296,6 +291,9 @@ def get_theme_label(market: dict) -> str:
     for kw, label in THEME_LABELS.items():
         if len(kw) >= 3 and kw in question:
             return label
+    stored_theme = market.get("theme")
+    if stored_theme:
+        return stored_theme
     if market.get("is_sports", False):
         return "Sports"
     if market.get("is_crypto", False):
@@ -433,67 +431,98 @@ def format_volume(vol: float) -> str:
     else:
         return f"${vol:,.0f}"
 
-# ── Context generation (template) ──────────────────────────────────────────────
+# ── Context generation (template + LLM grounding) ─────────────────────────────
 TWEET_HEADLINE_MAX = 45
+MAX_CONTEXT_WORDS = 34
 
-CONTEXT_WITH_NEWS_UP = [
-    "{headline_cleaned} ({source})",
-    "{headline_cleaned} — {source}. Odds climbed on the back of this",
-    "Market repriced after: {headline_cleaned} ({source})",
+CONTEXT_UP = [
+    "Recent developments improved the case for this outcome. Traders are leaning toward follow-through rather than a quick reversal.",
+    "Something material changed around this event today. The move suggests confidence is building behind the bullish scenario.",
+    "The underlying story appears to have turned more favorable. Traders are repricing toward a stronger near-term path.",
 ]
-CONTEXT_WITH_NEWS_DOWN = [
-    "{headline_cleaned} ({source})",
-    "{headline_cleaned} — {source}. Odds fell sharply",
-    "Market repriced after: {headline_cleaned} ({source})",
+CONTEXT_DOWN = [
+    "Recent developments weakened the case for this outcome. Traders are pricing in a less favorable path from here.",
+    "Confidence in this scenario faded quickly today. The move suggests the latest developments cut against it.",
+    "The underlying story appears to have turned less supportive. Traders are repricing toward a softer near-term path.",
 ]
-CONTEXT_NO_NEWS_UP = [
-    "Market pricing in a notably higher probability than 24h ago",
-    "Significant upward repricing — something shifted overnight",
-    "Odds moved sharply toward Yes, signaling new information",
-    "A sharp swing suggests new information entered the market",
-    "Steady buying pressure pushed this up — conviction is building",
-]
-CONTEXT_NO_NEWS_DOWN = [
-    "Market repricing notably lower — sentiment is shifting",
-    "Sharp move toward No suggests a meaningful signal",
-    "Odds dropped sharply — the market is growing skeptical",
-    "Downward pressure building. Something changed overnight",
-    "Sellers stepped in hard — conviction behind the move is real",
-]
+
+def _news_evidence_for_market(market: dict, limit: int = 2) -> list[dict]:
+    evidence = []
+    raw = market.get("news_evidence")
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                evidence.append({
+                    "title": item.get("title", ""),
+                    "source": item.get("source", ""),
+                    "url": item.get("url", ""),
+                    "snippet": item.get("snippet", ""),
+                })
+    if not evidence and market.get("news_headline"):
+        evidence.append({
+            "title": market.get("news_headline", ""),
+            "source": market.get("news_source", ""),
+            "url": market.get("news_url", ""),
+            "snippet": market.get("news_snippet", ""),
+        })
+    return evidence[:limit]
+
+def _source_aliases(source: str) -> list[str]:
+    source = (source or "").strip().lower()
+    if not source:
+        return []
+    aliases = {source}
+    host = source.replace("www.", "")
+    aliases.add(host)
+    root = re.sub(r"\.(com|co\.uk|co|org|net|io|tv|jp|in|de|fr|ru|us)$", "", host)
+    aliases.add(root)
+    aliases.update(part for part in re.split(r"[\W_]+", root) if len(part) >= 4)
+    return [a for a in aliases if a]
+
+def _normalize_context(text: str, market: dict) -> str:
+    text = (text or "").strip().strip('"').strip("'")
+    text = re.sub(r"https?://\S+", "", text)
+    for item in _news_evidence_for_market(market):
+        for alias in _source_aliases(item.get("source", "")):
+            text = re.sub(rf"(?i)\baccording to {re.escape(alias)}\b[:, ]*", "", text)
+            text = re.sub(rf"(?i)\b{re.escape(alias)}\b\s+(reported|reports|said|says)\b[:, ]*", "", text)
+            text = re.sub(rf"(?i)\bvia {re.escape(alias)}\b[:, ]*", "", text)
+            text = re.sub(rf"(?i)\bfrom {re.escape(alias)}\b[:, ]*", "", text)
+            text = re.sub(rf"(?i)\b{re.escape(alias)}\b", "", text)
+    text = re.sub(r"\([^)]*\.(?:com|co|org|net|io|tv)[^)]*\)", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" .,:;-")
+
+    sentences = [s.strip(" \"'") for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+    if len(sentences) > 2:
+        sentences = sentences[:2]
+    if len(sentences) == 1:
+        follow_up = (
+            "That is what traders appear to be reacting to."
+            if market.get("news_headline")
+            else "That seems to be the main driver behind the repricing."
+        )
+        sentences.append(follow_up)
+    text = " ".join(sentences)
+
+    words = text.split()
+    if len(words) > MAX_CONTEXT_WORDS:
+        text = " ".join(words[:MAX_CONTEXT_WORDS]).rstrip(" ,;:-")
+    if text:
+        text = text[0].upper() + text[1:]
+    if text and text[-1] not in ".!?":
+        text += "."
+    return text
 
 def generate_context_template(market: dict, used_patterns: set) -> str:
-    has_news = bool(market.get("news_headline"))
-    # v12: guard against empty source producing "()" in output
-    if has_news and not (market.get("news_source") or "").strip():
-        has_news = False
     going_up = market["delta_pp"] > 0
-
-    if has_news and going_up:
-        pool = CONTEXT_WITH_NEWS_UP
-    elif has_news and not going_up:
-        pool = CONTEXT_WITH_NEWS_DOWN
-    elif going_up:
-        pool = CONTEXT_NO_NEWS_UP
-    else:
-        pool = CONTEXT_NO_NEWS_DOWN
+    pool = CONTEXT_UP if going_up else CONTEXT_DOWN
 
     available = [p for p in pool if p not in used_patterns]
     if not available:
         available = pool
     pattern = random.choice(available)
     used_patterns.add(pattern)
-
-    headline_cleaned = ""
-    source = market.get("news_source", "") or ""
-    if has_news:
-        headline_cleaned, _ = clean_headline(market["news_headline"])
-
-    return pattern.format(
-        delta=f"{market['abs_delta_pp']:.0f}",
-        vol=format_volume(market["volume_24h"]),
-        headline_cleaned=headline_cleaned,
-        source=source,
-    )
+    return _normalize_context(pattern, market)
 
 def generate_context_llm(market: dict) -> str | None:
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -501,39 +530,31 @@ def generate_context_llm(market: dict) -> str | None:
     anthropic_base = os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1")
     openai_base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
-    news_block = ""
-    if market.get("news_headline"):
-        cleaned, _ = clean_headline(market["news_headline"])
-        snippet = market.get("news_snippet", "")
-        news_block = (
-            f"\nRecent related headline: {cleaned}\n"
-            f"Source: {market.get('news_source', 'unknown')}\n"
-        )
-        if snippet:
-            news_block += f"Article excerpt: {snippet[:250]}\n"
-        news_block += (
-            "\nGround your explanation in the headline and excerpt above. "
-            "Do NOT invent facts not mentioned. Do NOT repeat the headline verbatim. "
-            "Do NOT include the source name.\n"
-        )
+    evidence_items = _news_evidence_for_market(market)
+    if evidence_items:
+        evidence_lines = []
+        for i, item in enumerate(evidence_items, 1):
+            cleaned, _ = clean_headline(item.get("title", ""))
+            evidence_lines.append(f"Evidence {i} title: {cleaned}")
+            if item.get("snippet"):
+                evidence_lines.append(f"Evidence {i} excerpt: {item['snippet'][:260]}")
+        news_block = "\n".join(evidence_lines)
     else:
-        news_block = "\nNo specific news headline was found for this market.\nGive your best informed guess at the catalyst.\n"
+        news_block = "No reliable recent article evidence was found."
 
     prompt = (
-        "You are a sharp prediction market analyst writing for Twitter. "
-        "Write ONE sentence (max 25 words) explaining the most likely REASON this market moved. "
-        "Do NOT restate the probability, direction, or volume numbers. "
-        "Focus only on the real-world catalyst.\n"
-        "If a news headline is provided, use it to ground your explanation. "
-        "If no headline is provided, give your best informed guess. "
-        "Do NOT start with 'The' or 'This'. Use active voice. Be specific.\n\n"
+        "You are a sharp prediction market analyst writing concise thread commentary. "
+        "Write EXACTLY two short sentences explaining what changed in the real world and why traders repriced this contract. "
+        "Ground the answer only in the evidence provided when available.\n"
+        "Do NOT mention publication names, headlines, article titles, links, 'according to reports', or source domains. "
+        "Do NOT mention the probability, direction, volume, or that this is a market. "
+        "If evidence is weak, use cautious language instead of inventing facts.\n\n"
         f"Market: {market['question']}\n"
         f"Direction: {'UP' if market['delta_pp'] > 0 else 'DOWN'} "
         f"{market['abs_delta_pp']:.0f}pp in 24h\n"
-        f"Current probability: {market['price_now']*100:.0f}%\n"
         f"Tags: {', '.join(market.get('tag_slugs', []))}\n"
-        f"{news_block}\n"
-        "Your one-line context (no preamble, no quotes):"
+        f"{news_block}\n\n"
+        "Return only the two-sentence commentary. No bullets, no quotes."
     )
 
     if anthropic_key:
@@ -553,7 +574,7 @@ def generate_context_llm(market: dict) -> str | None:
             timeout=30,
         )
         resp.raise_for_status()
-        return resp.json()["content"][0]["text"].strip().rstrip(".")
+        return _normalize_context(resp.json()["content"][0]["text"], market)
 
     elif openai_key:
         import requests as req
@@ -571,7 +592,7 @@ def generate_context_llm(market: dict) -> str | None:
             timeout=30,
         )
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip().rstrip(".")
+        return _normalize_context(resp.json()["choices"][0]["message"]["content"], market)
 
     return None
 
@@ -738,7 +759,7 @@ def validate_tweet(text: str, label: str) -> list[str]:
 
 def generate_all_contexts_llm(movers: list) -> dict[int, str]:
     """
-    v14: Generate context lines grounded in real news snippets.
+    Generate two-sentence commentary grounded in recent news evidence.
     Returns dict mapping rank → context string.
     """
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -751,36 +772,35 @@ def generate_all_contexts_llm(movers: list) -> dict[int, str]:
 
     market_blocks = []
     for m in movers:
-        news_section = ""
-        if m.get("news_headline"):
-            cleaned, _ = clean_headline(m["news_headline"])
-            news_section = f"  Headline: {cleaned} ({m.get('news_source', '')})"
-            snippet = m.get("news_snippet", "")
-            if snippet:
-                news_section += f"\n  Article excerpt: {snippet[:250]}"
+        evidence_items = _news_evidence_for_market(m)
+        if evidence_items:
+            evidence_lines = []
+            for i, item in enumerate(evidence_items, 1):
+                cleaned, _ = clean_headline(item.get("title", ""))
+                evidence_lines.append(f"  Evidence {i} title: {cleaned}")
+                if item.get("snippet"):
+                    evidence_lines.append(f"  Evidence {i} excerpt: {item['snippet'][:250]}")
+            news_section = "\n".join(evidence_lines)
         else:
-            news_section = "  No news found for this market."
+            news_section = "  No reliable article evidence found."
 
         market_blocks.append(
             f"{m['rank']}. {m['question'][:100]}\n"
-            f"  {'UP' if m['delta_pp'] > 0 else 'DOWN'} {m['abs_delta_pp']:.0f}pp → "
-            f"{m['price_now']*100:.0f}% | Vol: ${m['volume_24h']:,.0f}\n"
+            f"  {'UP' if m['delta_pp'] > 0 else 'DOWN'} {m['abs_delta_pp']:.0f}pp\n"
+            f"  Tags: {', '.join(m.get('tag_slugs', []))}\n"
             f"{news_section}"
         )
 
     prompt = (
-        "You are a prediction market analyst writing for Twitter. "
-        "For EACH market below, write ONE punchy context sentence (max 30 words). "
-        "Each sentence should explain the likely REASON the market moved.\n\n"
+        "You are a prediction market analyst writing concise thread commentary. "
+        "For EACH market below, write EXACTLY two short sentences explaining what happened in the real world and why traders repriced the contract.\n\n"
         "CRITICAL RULES:\n"
-        "- If a headline and article excerpt are provided, your context MUST be grounded in that information\n"
-        "- Do NOT invent facts, names, statistics, or events not mentioned in the provided news\n"
-        "- If the news excerpt mentions specific details (a person, ruling, data point), reference them\n"
-        "- If no news is provided, say what kind of catalyst COULD cause this move — use hedging language "
-        "(e.g., 'Speculation around...', 'Traders appear to be pricing in...', 'Market sentiment suggests...')\n"
-        "- Do NOT restate probability numbers or direction\n"
-        "- Do NOT start with 'The' or 'This'\n"
-        "- Use active voice, be specific\n\n"
+        "- Ground each answer only in the provided evidence when evidence exists\n"
+        "- Do NOT invent facts, names, statistics, or events not present in the evidence\n"
+        "- Do NOT mention publication names, article titles, links, source domains, or 'according to reports'\n"
+        "- Do NOT restate the probability, direction, or volume\n"
+        "- If evidence is weak or absent, use cautious language instead of bluffing\n"
+        "- Keep each answer compact and plainspoken\n\n"
         "Markets:\n" + "\n\n".join(market_blocks) + "\n\n"
         "Respond with ONLY valid JSON: {\"1\": \"context\", \"2\": \"context\", ...}\n"
         "No markdown, no explanation, no backticks."
@@ -821,7 +841,8 @@ def generate_all_contexts_llm(movers: list) -> dict[int, str]:
         if raw.startswith("json"):
             raw = raw[4:].strip()
         result = json.loads(raw)
-        return {int(k): v.strip().rstrip(".") for k, v in result.items()}
+        return {int(k): _normalize_context(v, next(m for m in movers if m["rank"] == int(k)))
+                for k, v in result.items()}
     except Exception as e:
         print(f"[COMPOSE] Batch context LLM failed: {e}", file=sys.stderr)
         return {}
@@ -873,7 +894,7 @@ def main():
     # ── SAFETY NET (v7): every mover MUST have a useful context_line ───────────
     for m in movers:
         context = m.get("context_line", "").strip()
-        if len(context) < 15:
+        if len(context) < 20:
             print(f" [WARN] Reply {m.get('rank','?')} has short context, regenerating...")
             try:
                 m["context_line"] = generate_context_template(m, used_patterns)
@@ -881,18 +902,16 @@ def main():
                 pass
 
         context = m.get("context_line", "").strip()
-        if len(context) < 15:
-            vol_str = format_volume(m["volume_24h"])
-            delta = m["abs_delta_pp"]
+        if len(context) < 20:
             if m["delta_pp"] > 0:
                 m["context_line"] = (
-                    f"A {delta:.0f}pp swing on {vol_str} volume "
-                    f"suggests new information entered the market."
+                    "Recent developments appear to have improved the case for this outcome. "
+                    "Traders are leaning toward a stronger near-term path."
                 )
             else:
                 m["context_line"] = (
-                    f"Dropped {delta:.0f}pp on {vol_str} volume \u2014 "
-                    f"the market is growing skeptical."
+                    "Recent developments appear to have weakened the case for this outcome. "
+                    "Traders are pricing in a less favorable near-term path."
                 )
             print(f" [WARN] Reply {m.get('rank','?')} safety-net applied: {m['context_line'][:60]}...")
 

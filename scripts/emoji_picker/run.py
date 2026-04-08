@@ -93,6 +93,16 @@ ALLOWED_THEMES = [
     "Climate", "Health",
 ]
 
+def _normalize_for_match(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
+
+def _contains_keyword(text: str, keyword: str) -> bool:
+    norm_text = _normalize_for_match(text)
+    norm_keyword = _normalize_for_match(keyword)
+    if not norm_text or not norm_keyword:
+        return False
+    return f" {norm_keyword} " in f" {norm_text} "
+
 def pick_batch_llm(movers: list) -> tuple[dict, dict]:
     """
     Returns (emoji_map, theme_map) where both are {rank: str}.
@@ -197,7 +207,7 @@ def pick_batch_llm(movers: list) -> tuple[dict, dict]:
 def fallback_emoji(question: str, tag_slugs: list) -> str:
     combined = (question + " " + " ".join(s for s in tag_slugs)).lower()
     for kw, emo in FALLBACK.items():
-        if kw in combined:
+        if _contains_keyword(combined, kw):
             return emo
 
     # v14.2: last-resort category guessing before 📌
@@ -272,9 +282,14 @@ _THEME_FALLBACK = {
 
 def fallback_theme(market: dict) -> str:
     """Assign theme from tags/question when LLM unavailable."""
-    combined = " ".join(market.get("tag_slugs", [])).lower() + " " + market.get("question", "").lower()
+    tag_slugs = [s.lower() for s in market.get("tag_slugs", [])]
+    question = market.get("question", "").lower()
+    for slug in tag_slugs:
+        if slug in _THEME_FALLBACK:
+            return _THEME_FALLBACK[slug]
+    combined = " ".join(tag_slugs) + " " + question
     for kw, theme in _THEME_FALLBACK.items():
-        if kw in combined:
+        if _contains_keyword(combined, kw):
             return theme
     if market.get("is_sports"):
         return "Sports"
@@ -312,11 +327,18 @@ def main():
             m["emoji"] = fallback_emoji(m.get("question",""), m.get("tag_slugs",[]))
             print(f"  {r}. {m['emoji']} (fb)", end="")
         # Theme
-        if r in llm_theme_map:
-            m["theme"] = llm_theme_map[r]
-            print(f" [{m['theme']}] — {m['question'][:50]}...")
+        rule_theme = fallback_theme(m)
+        llm_theme = llm_theme_map.get(r)
+        if llm_theme:
+            m["llm_theme"] = llm_theme
+        if rule_theme != "Markets":
+            m["theme"] = rule_theme
+            print(f" [{m['theme']}] (rules) — {m['question'][:50]}...")
+        elif llm_theme:
+            m["theme"] = llm_theme
+            print(f" [{m['theme']}] (llm) — {m['question'][:50]}...")
         else:
-            m["theme"] = fallback_theme(m)
+            m["theme"] = rule_theme
             print(f" [{m['theme']}] (fb) — {m['question'][:50]}...")
 
     data["emoji_picked_at"] = datetime.now(timezone.utc).isoformat()
