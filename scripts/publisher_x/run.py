@@ -17,12 +17,20 @@ from datetime import datetime, timezone
 import re as _re_chars
 X_URL_LENGTH = 23
 def count_tweet_chars(text: str) -> int:
-    urls = _re_chars.compile(r"https?://\S+").findall(text)
-    c = len(text)
+    url_pattern = _re_chars.compile(r"https?://\S+")
+    urls = url_pattern.findall(text)
+    char_count = 0
+    for ch in text:
+        # Unicode chars outside BMP (surrogate pairs) count as 2 on X
+        if ord(ch) > 0xFFFF:
+            char_count += 2
+        else:
+            char_count += 1
     for url in urls:
-        c -= len(url)
-        c += X_URL_LENGTH
-    return c
+        url_len = sum(2 if ord(c) > 0xFFFF else 1 for c in url)
+        char_count -= url_len
+        char_count += X_URL_LENGTH
+    return char_count
 
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "/home/diligentapple/.openclaw/workspace/polymarket"))

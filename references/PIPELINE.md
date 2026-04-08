@@ -84,7 +84,9 @@ Assigns the best emoji to each mover via LLM batch call. Falls back to static ke
 - `nba`→🏀 `nfl`→🏈 `mlb`→⚾ `esports`/`lol`/`cs2`→🎮
 - `ai`→🤖 `tech`→💻 `spx`/`stocks`→📈
 - `politics`/`trump`→🇺🇸 `ukraine`→🇺🇦 `china`→🇨🇳
-- Default: 📌
+- 40+ team names (MLB, NBA, NFL) mapped to sport emojis
+- Last-resort heuristics: vs/match→⚽, price/$→📈, election→🗳️, war→⚔️, tweet→🐦
+- Default: 📌 (should rarely appear now)
 
 **Failure:** non-critical. Uses static fallback map.
 
@@ -102,22 +104,25 @@ Reorders movers from most to least engaging/shareable via LLM. Forces crypto to 
 
 Generates a tweet thread (1 lead + N replies) from the ranked, enriched movers.
 
-**Lead tweet:** generic rotating title + 3 diverse NON-crypto movers with emoji, short question, old%→new%, delta. Ends with `Show more`.
+**Lead tweet:** branded `📊 𝗣𝗼𝗹𝘆𝗺𝗮𝗿𝗸𝗲𝘁 𝗡𝗲𝘄𝘀` header + 3 diverse NON-crypto movers with emoji, 📈/📉 direction indicators, short question, old%→new%. Ends with `Show more`.
 
-**Reply structure:**
+**Reply structure (v13+):**
 ```
-{emoji} {shortened question}
-{outcome}: {pct}% ({direction} from {old_pct}% yesterday)
+{emoji} {Unicode bold theme}
+
+{shortened question}
+{outcome}: {pct}% {📈/📉} ({old}→{new}%, {±vol} vol)
 
 {context line — news-aware or analytical}
-[{vol} vol — if not in context]
 
-→ {polymarket URL}
+➜  {polymarket URL}
 ```
 
-**Context line:** news headline woven naturally (if news exists) or analytical template explaining repricing.
+**Context line:** news headline woven naturally (if news exists) or analytical template explaining repricing. Volume is NOT mentioned in context (already in pct_line). Headlines trimmed to 55 chars max.
 
-**Validation:** every reply must have context ≥15 chars; no placeholders; all ≤280 effective chars.
+**Length enforcement:** `_trim_to_limit()` progressively shortens replies (context line → question → blank lines → hard truncate). Safety net in `main()` catches any remaining overruns.
+
+**Validation:** every reply must have context ≥15 chars; no placeholders; all ≤280 effective chars (BMP-aware counting: Unicode bold chars = 2 chars each).
 
 ---
 

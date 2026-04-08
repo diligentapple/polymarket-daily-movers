@@ -171,12 +171,20 @@ def validate(date, stage_name):
             lead = d.get("lead", "")
             replies = d.get("replies", [])
             # v12.1: use X-aware char counting (URLs = 23 chars via t.co)
+            # v14.2: BMP-aware — Unicode bold chars count as 2 on X
             import re as _re_v
             def _count_chars(t):
-                urls = _re_v.compile(r"https?://\S+").findall(t)
-                c = len(t)
+                url_pattern = _re_v.compile(r"https?://\S+")
+                urls = url_pattern.findall(t)
+                c = 0
+                for ch in t:
+                    if ord(ch) > 0xFFFF:
+                        c += 2
+                    else:
+                        c += 1
                 for u in urls:
-                    c -= len(u)
+                    u_len = sum(2 if ord(ch) > 0xFFFF else 1 for ch in u)
+                    c -= u_len
                     c += 23
                 return c
 

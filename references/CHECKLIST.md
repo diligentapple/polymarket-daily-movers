@@ -53,13 +53,14 @@ Run through every item before entering daily automated production.
 
 [ ] 10. Composer dry run:
     [ ] Lead ≤ 280 effective chars
-    [ ] Lead has generic title (not event-specific)
-    [ ] Lead has exactly 3 non-crypto movers
+    [ ] Lead has branded '📊 𝗣𝗼𝗹𝘆𝗺𝗮𝗿𝗸𝗲𝘁 𝗡𝗲𝘄𝘀' header
+    [ ] Lead has exactly 3 non-crypto movers with 📈/📉 direction indicators
     [ ] Lead ends with "Show more" on its own line
+    [ ] Every reply has Unicode bold theme tag and emoji
     [ ] Every reply has outcome label ("Yes: X%", "Cooper Flagg: X%", "Up: X%")
     [ ] Every reply has a context line ≥ 15 chars
     [ ] No placeholder strings anywhere
-    [ ] All replies ≤ 280 effective chars
+    [ ] All replies ≤ 280 effective chars (BMP-aware counting)
 
 [ ] 11. URL verifier dry run:
     [ ] url_verification.json exists
